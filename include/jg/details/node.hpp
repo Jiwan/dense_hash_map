@@ -1,9 +1,9 @@
-#ifndef JGUEGANT_NODE_HPP
-#define JGUEGANT_NODE_HPP
+#ifndef JG_NODE_HPP
+#define JG_NODE_HPP
 
 #include <utility>
 
-namespace jguegant::details
+namespace jg::details
 {
 template <class Key, class Value>
 union key_value_pair 
@@ -19,4 +19,4 @@ struct node
     node* next;
 };
 }
-#endif // JGUEGANT_NODE_HPP
+#endif // JG_NODE_HPP

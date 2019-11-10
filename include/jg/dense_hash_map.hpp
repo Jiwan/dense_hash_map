@@ -1,5 +1,5 @@
-#ifndef JGUEGANT_DENSE_HASH_MAP_HPP
-#define JGUEGANT_DENSE_HASH_MAP_HPP
+#ifndef JG_DENSE_HASH_MAP_HPP
+#define JG_DENSE_HASH_MAP_HPP
 
 #include "details/node.hpp"
 #include "details/projection_iterator.hpp"
@@ -8,7 +8,7 @@
 #include <memory>
 #include <vector>
 
-namespace jguegant
+namespace jg
 {
 namespace details
 {
@@ -47,6 +47,6 @@ private:
     entries_container_type entries_;
 };
 
-} // namespace jguegant
+} // namespace jg
 
-#endif // JGUEGANT_DENSE_HASH_MAP_HPP
+#endif // JG_DENSE_HASH_MAP_HPP

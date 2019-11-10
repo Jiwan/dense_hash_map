@@ -1,56 +1,13 @@
-#ifndef JGUEGANT_PROJECTION_ITERATOR_HPP
-#define JGUEGANT_PROJECTION_ITERATOR_HPP
+#ifndef JG_PROJECTION_ITERATOR_HPP
+#define JG_PROJECTION_ITERATOR_HPP
 
 #include "node.hpp"
 
 #include <type_traits>
 #include <vector>
 
-namespace jguegant::details
+namespace jg::details
 {
-template <class Key, class T, bool isConst, bool projectToConstKey>
-class projection_iterator;
-
-template <class Key, class T, bool isConst, bool projectToConstKey>
-constexpr bool operator==(
-    const projection_iterator<Key, T, isConst, projectToConstKey>& lhs,
-    const projection_iterator<Key, T, isConst, projectToConstKey>& rhs) noexcept;
-
-template <class Key, class T, bool isConst, bool projectToConstKey>
-constexpr bool operator!=(
-    const projection_iterator<Key, T, isConst, projectToConstKey>& lhs,
-    const projection_iterator<Key, T, isConst, projectToConstKey>& rhs) noexcept;
-
-template <class Key, class T, bool isConst, bool projectToConstKey>
-constexpr bool operator<(
-    const projection_iterator<Key, T, isConst, projectToConstKey>& lhs,
-    const projection_iterator<Key, T, isConst, projectToConstKey>& rhs) noexcept;
-
-template <class Key, class T, bool isConst, bool projectToConstKey>
-constexpr bool operator>(
-    const projection_iterator<Key, T, isConst, projectToConstKey>& lhs,
-    const projection_iterator<Key, T, isConst, projectToConstKey>& rhs) noexcept;
-
-template <class Key, class T, bool isConst, bool projectToConstKey>
-constexpr bool operator<=(
-    const projection_iterator<Key, T, isConst, projectToConstKey>& lhs,
-    const projection_iterator<Key, T, isConst, projectToConstKey>& rhs) noexcept;
-
-template <class Key, class T, bool isConst, bool projectToConstKey>
-constexpr bool operator>=(
-    const projection_iterator<Key, T, isConst, projectToConstKey>& lhs,
-    const projection_iterator<Key, T, isConst, projectToConstKey>& rhs) noexcept;
-
-template <class Key, class T, bool isConst, bool projectToConstKey>
-constexpr typename projection_iterator<Key, T, isConst, projectToConstKey>::difference_type
-operator-(
-    const projection_iterator<Key, T, isConst, projectToConstKey>& lhs,
-    const projection_iterator<Key, T, isConst, projectToConstKey>& rhs) noexcept;
-
-template <class Key, class T, bool isConst, bool projectToConstKey>
-constexpr projection_iterator<Key, T, isConst, projectToConstKey> operator+(
-    typename projection_iterator<Key, T, isConst, projectToConstKey>::difference_type n,
-    const projection_iterator<Key, T, isConst, projectToConstKey>& it) noexcept;
 
 template <class Key, class T, bool isConst, bool projectToConstKey>
 class projection_iterator
@@ -61,12 +18,12 @@ private:
         isConst, typename entries_container_type::const_iterator,
         typename entries_container_type::iterator>::type;
     using sub_iterator_type_traits = std::iterator_traits<sub_iterator_type>;
-    using projectedType =
+    using projected_type =
         std::pair<typename std::conditional<projectToConstKey, Key, const Key>::type, T>;
 
 public:
     using iterator_category = typename sub_iterator_type_traits::iterator_category;
-    using value_type = std::conditional<isConst, const projectedType, projectedType>;
+    using value_type = std::conditional<isConst, const projected_type, projected_type>;
     using difference_type = typename sub_iterator_type_traits::difference_type;
     using reference = value_type&;
     using pointer = value_type*;
@@ -148,26 +105,9 @@ public:
         return {sub_iterator_ - n};
     }
 
-    friend constexpr bool operator== <Key, T, isConst, projectToConstKey>(
-        const projection_iterator& lhs, const projection_iterator& rhs) noexcept;
-
-    friend constexpr bool operator!= <Key, T, isConst, projectToConstKey>(
-        const projection_iterator& lhs, const projection_iterator& rhs) noexcept;
-
-    friend constexpr bool operator< <Key, T, isConst, projectToConstKey>(const projection_iterator& lhs, const projection_iterator& rhs) noexcept;
-
-    friend constexpr bool operator> <Key, T, isConst, projectToConstKey>(
-        const projection_iterator& lhs, const projection_iterator& rhs) noexcept;
-
-    friend constexpr bool operator<= <Key, T, isConst, projectToConstKey>(
-        const projection_iterator& lhs, const projection_iterator& rhs) noexcept;
-
-    friend constexpr bool operator>= <Key, T, isConst, projectToConstKey>(
-        const projection_iterator& lhs, const projection_iterator& rhs) noexcept;
-
-    friend constexpr difference_type operator- <Key, T, isConst, projectToConstKey>(const projection_iterator& lhs, const projection_iterator& rhs) noexcept;
-
-    friend constexpr projection_iterator operator+ <Key, T, isConst, projectToConstKey>(difference_type n, const projection_iterator& it) noexcept;
+    const sub_iterator_type& sub_iterator() const {
+        return sub_iterator_;
+    }
 
 private:
     sub_iterator_type sub_iterator_;
@@ -178,7 +118,7 @@ constexpr bool operator==(
     const projection_iterator<Key, T, isConst, projectToConstKey>& lhs,
     const projection_iterator<Key, T, isConst, projectToConstKey>& rhs) noexcept
 {
-    return lhs.sub_iterator_ == rhs.sub_iterator_;
+    return lhs.sub_iterator() == rhs.sub_iterator();
 }
 
 template <class Key, class T, bool isConst, bool projectToConstKey>
@@ -186,7 +126,7 @@ constexpr bool operator!=(
     const projection_iterator<Key, T, isConst, projectToConstKey>& lhs,
     const projection_iterator<Key, T, isConst, projectToConstKey>& rhs) noexcept
 {
-    return lhs.sub_iterator_ != rhs.sub_iterator_;
+    return lhs.sub_iterator() != rhs.sub_iterator();
 }
 
 template <class Key, class T, bool isConst, bool projectToConstKey>
@@ -194,7 +134,7 @@ constexpr bool operator<(
     const projection_iterator<Key, T, isConst, projectToConstKey>& lhs,
     const projection_iterator<Key, T, isConst, projectToConstKey>& rhs) noexcept
 {
-    return lhs.sub_iterator_ < rhs.sub_iterator_;
+    return lhs.sub_iterator() < rhs.sub_iterator();
 }
 
 template <class Key, class T, bool isConst, bool projectToConstKey>
@@ -202,7 +142,7 @@ constexpr bool operator>(
     const projection_iterator<Key, T, isConst, projectToConstKey>& lhs,
     const projection_iterator<Key, T, isConst, projectToConstKey>& rhs) noexcept
 {
-    return lhs.sub_iterator_ > rhs.sub_iterator_;
+    return lhs.sub_iterator() > rhs.sub_iterator();
 }
 
 template <class Key, class T, bool isConst, bool projectToConstKey>
@@ -210,7 +150,7 @@ constexpr bool operator<=(
     const projection_iterator<Key, T, isConst, projectToConstKey>& lhs,
     const projection_iterator<Key, T, isConst, projectToConstKey>& rhs) noexcept
 {
-    return lhs.sub_iterator_ <= rhs.sub_iterator_;
+    return lhs.sub_iterator() <= rhs.sub_iterator();
 }
 
 template <class Key, class T, bool isConst, bool projectToConstKey>
@@ -218,7 +158,7 @@ constexpr bool operator>=(
     const projection_iterator<Key, T, isConst, projectToConstKey>& lhs,
     const projection_iterator<Key, T, isConst, projectToConstKey>& rhs) noexcept
 {
-    return lhs.sub_iterator_ >= rhs.sub_iterator_;
+    return lhs.sub_iterator() >= rhs.sub_iterator();
 }
 
 template <class Key, class T, bool isConst, bool projectToConstKey>
@@ -227,7 +167,7 @@ operator-(
     const projection_iterator<Key, T, isConst, projectToConstKey>& lhs,
     const projection_iterator<Key, T, isConst, projectToConstKey>& rhs) noexcept
 {
-    return lhs.sub_iterator_ - rhs.sub_iterator_;
+    return lhs.sub_iterator() - rhs.sub_iterator();
 }
 
 template <class Key, class T, bool isConst, bool projectToConstKey>
@@ -235,9 +175,9 @@ constexpr projection_iterator<Key, T, isConst, projectToConstKey> operator+(
     typename projection_iterator<Key, T, isConst, projectToConstKey>::difference_type n,
     const projection_iterator<Key, T, isConst, projectToConstKey>& it) noexcept
 {
-    return {n + it.sub_iterator_};
+    return {n + it.sub_iterator()};
 }
 
-} // namespace jguegant::details
+} // namespace jg::details
 
-#endif// JGUEGANT_PROJECTION_ITERATOR_HPP
+#endif// JG_PROJECTION_ITERATOR_HPP
