@@ -2,7 +2,7 @@
 #define JG_DENSE_HASH_MAP_HPP
 
 #include "details/node.hpp"
-#include "details/projection_iterator.hpp"
+#include "details/dense_hash_map_iterator.hpp"
 
 #include <functional>
 #include <memory>
@@ -12,10 +12,6 @@ namespace jg
 {
 namespace details
 {
-    template <class Key, class Value, bool isConst>
-    struct bucket_iterator
-    {
-    };
 } // namespace details
 
 template <
@@ -39,8 +35,8 @@ public:
     using const_reference = value_type&;
     using pointer = typename std::allocator_traits<Allocator>::pointer;
     using const_pointer = typename std::allocator_traits<Allocator>::const_pointer;
-    using iterator = details::projection_iterator<Key, T, false, true>;
-    using const_iterator = details::projection_iterator<Key, T, true, true>;
+    using iterator = details::dense_hash_map_iterator<Key, T, false, true>;
+    using const_iterator = details::dense_hash_map_iterator<Key, T, true, true>;
 
 private:
     std::vector<size_type> buckets_;
