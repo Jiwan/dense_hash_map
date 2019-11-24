@@ -2,8 +2,9 @@
 #define JG_DENSE_HASH_MAP_HPP
 
 #include "details/bucket_iterator.hpp"
-#include "details/node.hpp"
 #include "details/dense_hash_map_iterator.hpp"
+#include "details/node.hpp"
+#include "details/power_of_two_growth_policy.hpp"
 
 #include <algorithm>
 #include <functional>
@@ -15,15 +16,22 @@ namespace jg
 {
 namespace details
 {
+    static constexpr const float default_max_load_factor = 0.875f;
 } // namespace details
 
 template <
     class Key, class T, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>,
-    class Allocator = std::allocator<std::pair<const Key, T>>>
+    class Allocator = std::allocator<std::pair<const Key, T>>,
+    class GrowthPolicy = details::power_of_two_growth_policy
+    >
 class dense_hash_map
 {
 private:
     using entries_container_type = std::vector<details::node<Key, T>>;
+    using node_index_type = details::node_index_type<Key, T>;
+    using GrowthPolicy::compute_closest_capacity;
+    using GrowthPolicy::compute_index;
+    using GrowthPolicy::minimum_capacity;
 
 public:
     using key_type = Key;
@@ -44,6 +52,12 @@ public:
     using const_local_iterator = details::bucket_iterator<Key, T, true, true>;
 
 
+    template<class... Args>
+    std::pair<iterator,bool> emplace(Args&&... args)
+    {
+
+    }
+
     [[nodiscard]] bool empty() const noexcept
     {
         return entries_.empty();
@@ -63,7 +77,7 @@ public:
     {
         entries_.clear();
         buckets_.clear();
-        std::fill(buckets_.) // TODO: re-init the container.
+        // TODO: re-init the container.
     }
 
     size_type bucket_count() const 
@@ -92,9 +106,27 @@ public:
     }
 
 private:
+
+    node_index_type key_to_index(const Key& k)
+    {
+        return compute_index(hash_(k), buckets_.size()); 
+    }
+
+
+    template<class... ValueArgs>
+    void do_emplace(Key&& key, ValueArgs... args)
+    {
+        
+
+
+        for ()
+        
+    }
+
     std::vector<size_type> buckets_;
     entries_container_type entries_;
     float max_load_factor_;
+    Hash hash_;
 };
 
 } // namespace jg
