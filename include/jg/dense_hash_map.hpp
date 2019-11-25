@@ -10,6 +10,7 @@
 #include <functional>
 #include <iterator>
 #include <memory>
+#include <tuple>
 #include <vector>
 
 namespace jg
@@ -17,13 +18,21 @@ namespace jg
 namespace details
 {
     static constexpr const float default_max_load_factor = 0.875f;
+
+    template <class Key, class T, bool isConst, bool projectToConstKey>
+    dense_hash_map_iterator<Key, T, isConst, projectToConstKey> bucket_iterator_to_iterator(
+        const bucket_iterator<Key, T, isConst, projectToConstKey>& bucket_it,
+        std::vector<node<Key, T>>& vec)
+    {
+        return {bucket_it.current_node_index(),
+                std::next(vec.begin(), bucket_it.current_node_index())};
+    }
 } // namespace details
 
 template <
     class Key, class T, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>,
     class Allocator = std::allocator<std::pair<const Key, T>>,
-    class GrowthPolicy = details::power_of_two_growth_policy
-    >
+    class GrowthPolicy = details::power_of_two_growth_policy>
 class dense_hash_map
 {
 private:
@@ -51,27 +60,15 @@ public:
     using local_iterator = details::bucket_iterator<Key, T, false, true>;
     using const_local_iterator = details::bucket_iterator<Key, T, true, true>;
 
+    template <class... Args>
+    std::pair<iterator, bool> emplace(Args&&... args)
+    {}
 
-    template<class... Args>
-    std::pair<iterator,bool> emplace(Args&&... args)
-    {
+    [[nodiscard]] bool empty() const noexcept { return entries_.empty(); }
 
-    }
+    size_type size() const noexcept { return entries_.size(); }
 
-    [[nodiscard]] bool empty() const noexcept
-    {
-        return entries_.empty();
-    }
-
-    size_type size() const noexcept 
-    {
-        return entries_.size();
-    }
-
-    size_type max_size() const noexcept
-    {
-        return entries_.max_size();
-    }
+    size_type max_size() const noexcept { return entries_.max_size(); }
 
     void clear() noexcept
     {
@@ -80,53 +77,79 @@ public:
         // TODO: re-init the container.
     }
 
-    size_type bucket_count() const 
+    iterator begin() noexcept { return {entries_.begin()}; }
+
+    const_iterator begin() const noexcept { return {entries_.begin()}; }
+
+    const_iterator cbegin() const noexcept { return {entries_.cbegin()}; }
+
+    iterator end() noexcept { return {entries_.end()}; }
+
+    const_iterator end() const noexcept { return {entries_.end()}; }
+
+    const_iterator cend() const noexcept { return {entries_.cend()}; }
+
+    local_iterator begin(size_type n) { return {buckets_[n], entries_}; }
+
+    const_local_iterator begin(size_type n) const { return {buckets_[n], entries_}; }
+
+    const_local_iterator cbegin(size_type n) const { return {buckets_[n], entries_}; }
+
+    local_iterator end(size_type /*n*/) { return {entries_}; }
+
+    const_local_iterator end(size_type /*n*/) const { return {entries_}; }
+
+    const_local_iterator cend(size_type /*n*/) const { return {entries_}; }
+
+    size_type bucket_count() const { return buckets_.size(); }
+
+    size_type bucket_size(size_type n) const
     {
-        return buckets_.size();
+        return static_cast<size_t>(std::distance(begin(n), end(n)));
     }
 
-    float load_factor() const 
+    size_type bucket(const key_type& key) const
     {
-        return size() /  bucket_count();
+        return compute_index(hash_(key), buckets_.size());
     }
 
-    float max_load_factor() const
-    {
-        return max_load_factor_;
-    }
-    
-    void max_load_factor(float ml)
-    {
-        max_load_factor_ = ml;
-    }
+    float load_factor() const { return size() / bucket_count(); }
 
-    void rehash(size_type count)
-    {
+    float max_load_factor() const { return max_load_factor_; }
 
-    }
+    void max_load_factor(float ml) { max_load_factor_ = ml; }
+
+    void rehash(size_type count) {}
 
 private:
-
-    node_index_type key_to_index(const Key& k)
+    template <class... ValueArgs>
+    std::pair<iterator, bool> do_emplace(key_type&& key, ValueArgs... args)
     {
-        return compute_index(hash_(k), buckets_.size()); 
-    }
+        // TODO: growth
 
+        auto bucket_index = bucket(key);
+        auto b = begin(buckets_[bucket_index]);
+        auto e = end(bucket_index);
 
-    template<class... ValueArgs>
-    void do_emplace(Key&& key, ValueArgs... args)
-    {
-        
+        auto it = std::find(b, e, [&key, this](auto& p) { return key_equal_(p.first, key); });
 
+        if (it != e) { return {details::bucket_iterator_to_iterator(it, entries_), false}; }
 
-        for ()
-        
+        entries_.emplace_back(
+            {std::move(key), std::forward_as_tuple(std::forward<ValueArgs>(args)...)},
+            b.current_node_index());
+        buckets_[bucket_index] = entries_.size() - 1;
+
+        return std::prev(end());
     }
 
     std::vector<size_type> buckets_;
     entries_container_type entries_;
     float max_load_factor_;
-    Hash hash_;
+
+    // TODO: EBO
+    hasher hash_;
+    key_equal key_equal_;
 };
 
 } // namespace jg

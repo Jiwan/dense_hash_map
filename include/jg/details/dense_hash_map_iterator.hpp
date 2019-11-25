@@ -30,6 +30,10 @@ public:
 
     constexpr dense_hash_map_iterator() noexcept : sub_iterator_(sub_iterator_type{}) {}
 
+    explicit constexpr dense_hash_map_iterator(sub_iterator_type& it) noexcept
+        : sub_iterator_(it)
+    {}
+
     explicit constexpr dense_hash_map_iterator(const dense_hash_map_iterator& other) noexcept
         : sub_iterator_(other.sub_iterator_)
     {}

@@ -30,6 +30,12 @@ public:
     {
     }
 
+    bucket_iterator(node_index_type index, entries_container_type& entries_container)
+        : entries_container_(&entries_container)
+        , current_node_index_(index)
+    {
+    }
+
     constexpr reference operator*() const noexcept
     {
         if constexpr (projectToConstKey) { return entries_container_[current_node_index_].pair.const_; }
