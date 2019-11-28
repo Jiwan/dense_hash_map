@@ -31,7 +31,7 @@ struct power_of_two_growth_policy {
 
     static constexpr std::size_t minimum_capacity()
     {
-        return 8z;
+        return 8u;
     } 
 };
 
