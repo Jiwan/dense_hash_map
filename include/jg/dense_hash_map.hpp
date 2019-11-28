@@ -148,7 +148,9 @@ public:
     size_type erase(const key_type& key)
     {
         auto bucket_index = bucket(key);
-        auto it = find_in_bucket(key, bucket_index);
+        auto local_it = find_in_bucket(key, bucket_index);
+
+        auto it = details::bucket_iterator_to_iterator(local_it, entries_);
 
         if (it == end()) {
             return 0;
@@ -160,19 +162,25 @@ public:
     }
 
 private:
-    iterator find_in_bucket(const key_type& key, std::size_t bucket_index)
+    local_iterator find_in_bucket(const key_type& key, std::size_t bucket_index)
     {
-
+        auto b = begin(buckets_[bucket_index]);
+        auto e = end(0u);
+        auto it = std::find(b, e, [&key, this](auto& p) { return key_equal_(p.first, key); });
+        return it;
     }
 
     iterator do_erase(const_iterator pos, std::size_t bucket_index) 
     {
-        // Remove the entry from its bucket.
+        // Remove the entry from its bucket using the linked-list.
 
-
-        if () {
-            std::swap(entries_.end(), )
+        // If not the last one.
+        if (!entries_.empty()) {
+            std::swap(entries_.end() - 1, );
+            reinsert_entry(, node_index_type index);
         }
+
+        entries_.pop_back();
     }
 
     void reinsert_entry(node_type& entry, node_index_type index)
@@ -195,16 +203,14 @@ private:
         check_for_rehash();
 
         auto bucket_index = bucket(key);
-        auto b = begin(buckets_[bucket_index]);
-        auto e = end(bucket_index);
+        auto local_it = find_in_bucket(key, bucket_index);
 
-        auto it = std::find(b, e, [&key, this](auto& p) { return key_equal_(p.first, key); });
-
-        if (it != e) { return {details::bucket_iterator_to_iterator(it, entries_), false}; }
+        if (local_it != end(0u)) { return {details::bucket_iterator_to_iterator(local_it, entries_), false}; }
 
         entries_.emplace_back(
             {std::move(key), std::forward_as_tuple(std::forward<ValueArgs>(args)...)},
-            b.current_node_index());
+            buckets_[bucket_index]
+        );
         buckets_[bucket_index] = entries_.size() - 1;
 
         return std::prev(end());
