@@ -68,42 +68,42 @@ public:
     std::pair<iterator, bool> emplace(Args&&... args)
     {}
 
-    [[nodiscard]] bool empty() const noexcept { return entries_.empty(); }
+    [[nodiscard]] bool empty() const noexcept { return nodes_.empty(); }
 
-    size_type size() const noexcept { return entries_.size(); }
+    size_type size() const noexcept { return nodes_.size(); }
 
-    size_type max_size() const noexcept { return entries_.max_size(); }
+    size_type max_size() const noexcept { return nodes_.max_size(); }
 
     void clear() noexcept
     {
-        entries_.clear();
+        nodes_.clear();
         buckets_.clear();
         // TODO: re-init the container.
     }
 
-    iterator begin() noexcept { return {entries_.begin()}; }
+    iterator begin() noexcept { return {nodes_.begin()}; }
 
-    const_iterator begin() const noexcept { return {entries_.begin()}; }
+    const_iterator begin() const noexcept { return {nodes_.begin()}; }
 
-    const_iterator cbegin() const noexcept { return {entries_.cbegin()}; }
+    const_iterator cbegin() const noexcept { return {nodes_.cbegin()}; }
 
-    iterator end() noexcept { return {entries_.end()}; }
+    iterator end() noexcept { return {nodes_.end()}; }
 
-    const_iterator end() const noexcept { return {entries_.end()}; }
+    const_iterator end() const noexcept { return {nodes_.end()}; }
 
-    const_iterator cend() const noexcept { return {entries_.cend()}; }
+    const_iterator cend() const noexcept { return {nodes_.cend()}; }
 
-    local_iterator begin(size_type n) { return {buckets_[n], entries_}; }
+    local_iterator begin(size_type n) { return {buckets_[n], nodes_}; }
 
-    const_local_iterator begin(size_type n) const { return {buckets_[n], entries_}; }
+    const_local_iterator begin(size_type n) const { return {buckets_[n], nodes_}; }
 
-    const_local_iterator cbegin(size_type n) const { return {buckets_[n], entries_}; }
+    const_local_iterator cbegin(size_type n) const { return {buckets_[n], nodes_}; }
 
-    local_iterator end(size_type /*n*/) { return {entries_}; }
+    local_iterator end(size_type /*n*/) { return {nodes_}; }
 
-    const_local_iterator end(size_type /*n*/) const { return {entries_}; }
+    const_local_iterator end(size_type /*n*/) const { return {nodes_}; }
 
-    const_local_iterator cend(size_type /*n*/) const { return {entries_}; }
+    const_local_iterator cend(size_type /*n*/) const { return {nodes_}; }
 
     size_type bucket_count() const { return buckets_.size(); }
 
@@ -132,8 +132,9 @@ public:
 
         node_index_type index{0u};
 
-        for (auto& entry : entries_) 
+        for (auto& entry : nodes_) 
         {
+            entry->next = 
             reinsert_entry(entry, index);
             index++;
         }
@@ -141,22 +142,33 @@ public:
 
     iterator erase(const_iterator pos)
     {
-        return do_erase(pos, bucket(pos->first));
+        // TODO:
     }
     
     iterator erase(const_iterator first, const_iterator last);
     size_type erase(const key_type& key)
     {
+        // We have to find out the node we look for and the pointer to it.
         auto bucket_index = bucket(key);
-        auto local_it = find_in_bucket(key, bucket_index);
 
-        auto it = details::bucket_iterator_to_iterator(local_it, entries_);
+        std::size_t* previous_next = &buckets_[bucket_index]; 
+        
+        auto bucket_it = begin(buckets_[bucket_index]);
+        auto bucket_end = end(0u);
 
-        if (it == end()) {
+        while (key_equal(bucket_it->const_.first, key) && bucket_it != bucket_end) {
+            previous_next = &bucket_it->next;
+            ++bucket_it; 
+        }
+
+        // The key was never in the map to start with.
+        if (bucket_it == bucket_end) {
             return 0;
         }
 
-        do_erase(it, bucket_index);
+        auto it = bucket_iterator_to_iterator(bucket_it);
+        
+        do_erase(previous_next, it);
 
         return 1;
     }
@@ -166,21 +178,45 @@ private:
     {
         auto b = begin(buckets_[bucket_index]);
         auto e = end(0u);
-        auto it = std::find(b, e, [&key, this](auto& p) { return key_equal_(p.first, key); });
+        auto it = std::find(b, e, [&key, this](auto& p) { return key_equal_(p.const_.first, key); });
         return it;
     }
 
-    iterator do_erase(const_iterator pos, std::size_t bucket_index) 
+    std::pair<iterator, bool> do_erase(std::size_t* previous_next, iterator it) 
     {
-        // Remove the entry from its bucket using the linked-list.
+        // Skip the node by pointing the previous "next" to the one it currently point to. 
+        *previous_next = it->next;
 
-        // If not the last one.
-        if (!entries_.empty()) {
-            std::swap(entries_.end() - 1, );
-            reinsert_entry(, node_index_type index);
+        auto last = std::prev(end());
+
+        // No need to do anything if the node was at the end of the vector.
+        if (it == last) {
+            nodes_.pop_back();
+            return {end(), true};            
+        }
+        
+        // Swap last node and the one we want to delete, and pop the last one.
+        using std::swap;
+        swap(*it, *last);
+        nodes_.pop_back();
+        
+        // Now it points to the one we swapped with. We have to readjust it.
+        std::size_t* bucket_index = bucket(it->first);
+
+        // We can just base ourselves on the position in the nodes.
+        auto old_position = nodes_.size();
+
+        previous_next = &buckets_[bucket_index];
+        while (*previous_next != old_position) {
+            previous_next = &nodes_[*previous_next].next; 
         }
 
-        entries_.pop_back();
+        *previous_next = std::distance(begin(), it);
+
+        return {it, true};
+    }
+
+    void get_prev_pointer_and_bucket_it() {
     }
 
     void reinsert_entry(node_type& entry, node_index_type index)
@@ -205,19 +241,19 @@ private:
         auto bucket_index = bucket(key);
         auto local_it = find_in_bucket(key, bucket_index);
 
-        if (local_it != end(0u)) { return {details::bucket_iterator_to_iterator(local_it, entries_), false}; }
+        if (local_it != end(0u)) { return {details::bucket_iterator_to_iterator(local_it, nodes_), false}; }
 
-        entries_.emplace_back(
+        nodes_.emplace_back(
             {std::move(key), std::forward_as_tuple(std::forward<ValueArgs>(args)...)},
             buckets_[bucket_index]
         );
-        buckets_[bucket_index] = entries_.size() - 1;
+        buckets_[bucket_index] = nodes_.size() - 1;
 
         return std::prev(end());
     }
 
     std::vector<size_type> buckets_;
-    entries_container_type entries_;
+    entries_container_type nodes_;
     float max_load_factor_;
 
     // TODO: EBO
