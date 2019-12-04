@@ -21,33 +21,38 @@ namespace details
     static constexpr const float default_max_load_factor = 0.875f;
 
     template <class Key, class T, bool isConst, bool projectToConstKey>
-    constexpr dense_hash_map_iterator<Key, T, isConst, projectToConstKey>
-    bucket_iterator_to_iterator(
+    [[nodiscard]] constexpr auto bucket_iterator_to_iterator(
         const bucket_iterator<Key, T, isConst, projectToConstKey>& bucket_it,
         std::vector<node<Key, T>>& vec)
+        -> dense_hash_map_iterator<Key, T, isConst, projectToConstKey>
     {
         return {bucket_it.current_node_index(),
                 std::next(vec.begin(), bucket_it.current_node_index())};
     }
 
     template <class Key, class T, bool isConst, bool projectToConstKey>
-    constexpr dense_hash_map_iterator<Key, T, false, true> const_iterator_to_iterator(
+    [[nodiscard]] constexpr auto const_iterator_to_iterator(
         const dense_hash_map_iterator<Key, T, true, true>& const_it, std::vector<node<Key, T>>& vec)
+        -> dense_hash_map_iterator<Key, T, false, true>
     {
         const auto distance = std::distance(vec.cbegin(), const_it);
         return {std::next(vec.begin(), distance)};
     }
+
+    template <class Alloc, class T>
+    using rebind_alloc = typename std::allocator_traits<Alloc>::template rebind_alloc<T>;
 } // namespace details
 
 template <
     class Key, class T, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>,
     class Allocator = std::allocator<std::pair<const Key, T>>,
     class GrowthPolicy = details::power_of_two_growth_policy>
-class dense_hash_map
+class dense_hash_map : private GrowthPolicy
 {
 private:
     using node_type = details::node<Key, T>;
-    using entries_container_type = std::vector<node_type, Allocator>;
+    using entries_container_type =
+        std::vector<node_type, details::rebind_alloc<Allocator, node_type>>;
     using node_index_type = details::node_index_type<Key, T>;
     using GrowthPolicy::compute_closest_capacity;
     using GrowthPolicy::compute_index;
@@ -101,8 +106,9 @@ public:
         InputIt first, InputIt last, size_type bucket_count = minimum_capacity(),
         const Hash& hash = Hash(), const key_equal& equal = key_equal(),
         const allocator_type& alloc = allocator_type())
+        : dense_hash_map(bucket_count, hash, equal, alloc)
     {
-        // insert(first, last);
+        insert(first, last);
     }
 
     template <class InputIt>
@@ -161,27 +167,52 @@ public:
         : dense_hash_map(init, bucket_count, hash, key_equal(), alloc)
     {}
 
-    constexpr allocator_type get_allocator() const { return alloc_; }
+    constexpr auto get_allocator() const -> allocator_type { return alloc_; }
+
+    constexpr auto insert(const value_type& value) -> std::pair<iterator, bool>
+    {
+        return emplace(value);
+    }
+
+    constexpr auto insert(value_type&& value) -> std::pair<iterator, bool>
+    {
+        return emplace(std::move(value));
+    }
+
+    template <class P, std::enable_if_t<std::is_constructible_v<value_type, P&&>, int> = 0>
+    constexpr auto insert(P&& value) -> std::pair<iterator, bool>
+    {
+        return emplace(std::forward<P>(value));
+    }
+
+    template <class InputIt>
+    constexpr void insert(InputIt first, InputIt last)
+    {
+        for (; first != last; ++first)
+        {
+            insert(*first);
+        }
+    }
 
     template <class... Args>
-    std::pair<iterator, bool> emplace(Args&&... args)
+    auto emplace(Args&&... args) -> std::pair<iterator, bool>
     {
         dispatch_emplace(std::forward<Args>(args)...);
     }
 
     template <class... Args>
-    constexpr std::pair<iterator, bool> try_emplace(const key_type& key, Args&&... args)
+    constexpr auto try_emplace(const key_type& key, Args&&... args) -> std::pair<iterator, bool>
     {
         return do_emplace(
             key, std::piecewise_construct, std::forward_as_tuple(key),
             std::forward_as_tuple(std::forward<Args>(args)...));
     }
 
-    [[nodiscard]] bool empty() const noexcept { return nodes_.empty(); }
+    [[nodiscard]] auto empty() const noexcept -> bool { return nodes_.empty(); }
 
-    size_type size() const noexcept { return nodes_.size(); }
+    auto size() const noexcept -> size_type { return nodes_.size(); }
 
-    size_type max_size() const noexcept { return nodes_.max_size(); }
+    auto max_size() const noexcept -> size_type { return nodes_.max_size(); }
 
     void clear() noexcept
     {
@@ -190,45 +221,45 @@ public:
         // TODO: re-init the container.
     }
 
-    iterator begin() noexcept { return {nodes_.begin()}; }
+    auto begin() noexcept -> iterator { return {nodes_.begin()}; }
 
-    const_iterator begin() const noexcept { return {nodes_.begin()}; }
+    auto begin() const noexcept -> const_iterator { return {nodes_.begin()}; }
 
-    const_iterator cbegin() const noexcept { return {nodes_.cbegin()}; }
+    auto cbegin() const noexcept -> const_iterator { return {nodes_.cbegin()}; }
 
-    iterator end() noexcept { return {nodes_.end()}; }
+    auto end() noexcept -> iterator { return {nodes_.end()}; }
 
-    const_iterator end() const noexcept { return {nodes_.end()}; }
+    auto end() const noexcept -> const_iterator { return {nodes_.end()}; }
 
-    const_iterator cend() const noexcept { return {nodes_.cend()}; }
+    auto cend() const noexcept -> const_iterator { return {nodes_.cend()}; }
 
-    local_iterator begin(size_type n) { return {buckets_[n], nodes_}; }
+    auto begin(size_type n) -> local_iterator { return {buckets_[n], nodes_}; }
 
-    const_local_iterator begin(size_type n) const { return {buckets_[n], nodes_}; }
+    auto begin(size_type n) const -> const_local_iterator { return {buckets_[n], nodes_}; }
 
-    const_local_iterator cbegin(size_type n) const { return {buckets_[n], nodes_}; }
+    auto cbegin(size_type n) const -> const_local_iterator { return {buckets_[n], nodes_}; }
 
-    local_iterator end(size_type /*n*/) { return {nodes_}; }
+    auto end(size_type /*n*/) -> local_iterator { return {nodes_}; }
 
-    const_local_iterator end(size_type /*n*/) const { return {nodes_}; }
+    auto end(size_type /*n*/) const -> const_local_iterator { return {nodes_}; }
 
-    const_local_iterator cend(size_type /*n*/) const { return {nodes_}; }
+    auto cend(size_type /*n*/) const -> const_local_iterator { return {nodes_}; }
 
-    size_type bucket_count() const { return buckets_.size(); }
+    auto bucket_count() const -> size_type { return buckets_.size(); }
 
-    size_type bucket_size(size_type n) const
+    auto bucket_size(size_type n) const -> size_type
     {
         return static_cast<size_t>(std::distance(begin(n), end(n)));
     }
 
-    size_type bucket(const key_type& key) const
+    auto bucket(const key_type& key) const -> size_type
     {
         return compute_index(hash_(key), buckets_.size());
     }
 
-    float load_factor() const { return size() / bucket_count(); }
+    auto load_factor() const -> float { return size() / bucket_count(); }
 
-    float max_load_factor() const { return max_load_factor_; }
+    auto max_load_factor() const -> float { return max_load_factor_; }
 
     void max_load_factor(float ml) { max_load_factor_ = ml; }
 
@@ -243,13 +274,13 @@ public:
 
         for (auto& entry : nodes_)
         {
-            entry->next = node_end_index;
+            entry.next = node_end_index;
             reinsert_entry(entry, index);
             index++;
         }
     }
 
-    iterator erase(const_iterator pos)
+    auto erase(const_iterator pos) -> iterator
     {
         auto it = details::const_iterator_to_iterator(pos);
         auto position = std::distance(nodes_.begin(), it);
@@ -257,8 +288,8 @@ public:
         do_erase(previous_next, it);
     }
 
-    iterator erase(const_iterator first, const_iterator last);
-    size_type erase(const key_type& key)
+    auto erase(const_iterator first, const_iterator last) -> iterator;
+    auto erase(const key_type& key) -> size_type
     {
         // We have to find out the node we look for and the pointer to it.
         auto bucket_index = bucket(key);
@@ -275,7 +306,10 @@ public:
         }
 
         // The key was never in the map to start with.
-        if (bucket_it == bucket_end) { return 0; }
+        if (bucket_it == bucket_end)
+        {
+            return 0;
+        }
 
         auto it = bucket_iterator_to_iterator(bucket_it);
 
@@ -284,12 +318,12 @@ public:
         return 1;
     }
 
-    iterator find(const Key& key) { return find_in_bucket(key, bucket(key)); }
+    auto find(const Key& key) -> iterator { return find_in_bucket(key, bucket(key)); }
 
-    const_iterator find(const Key& key) const { return find_in_bucket(key, bucket(key)); }
+    auto find(const Key& key) const -> const_iterator { return find_in_bucket(key, bucket(key)); }
 
 private:
-    local_iterator find_in_bucket(const key_type& key, std::size_t bucket_index)
+    auto find_in_bucket(const key_type& key, std::size_t bucket_index) -> local_iterator
     {
         auto b = begin(buckets_[bucket_index]);
         auto e = end(0u);
@@ -298,7 +332,7 @@ private:
         return it;
     }
 
-    std::pair<iterator, bool> do_erase(std::size_t* previous_next, iterator it)
+    auto do_erase(std::size_t* previous_next, iterator it) -> std::pair<iterator, bool>
     {
         // Skip the node by pointing the previous "next" to the one it currently point to.
         *previous_next = it->next;
@@ -325,12 +359,16 @@ private:
         return {it, true};
     }
 
-    std::size_t* find_previous_next_using_position(const key_type& key, std::size_t position)
+    auto find_previous_next_using_position(const key_type& key, std::size_t position)
+        -> std::size_t*
     {
         std::size_t* bucket_index = bucket(key);
 
         auto previous_next = &buckets_[bucket_index];
-        while (*previous_next != position) { previous_next = &nodes_[*previous_next].next; }
+        while (*previous_next != position)
+        {
+            previous_next = &nodes_[*previous_next].next;
+        }
 
         return previous_next;
     }
@@ -344,20 +382,25 @@ private:
 
     void check_for_rehash()
     {
-        if (size() + 1 > bucket_count() * max_load_factor()) { rehash(bucket_count() * 2); }
+        if (size() + 1 > bucket_count() * max_load_factor())
+        {
+            rehash(bucket_count() * 2);
+        }
     }
 
-    constexpr std::pair<iterator, bool> dispatch_emplace()
+    constexpr auto dispatch_emplace() -> std::pair<iterator, bool>
     {
         key_type new_key{};
         return do_emplace(new_key, std::move(new_key));
     }
 
     template <class Key2, class T2>
-    std::pair<iterator, bool> dispatch_emplace(Key2&& key, T2&& t)
+    auto dispatch_emplace(Key2&& key, T2&& t) -> std::pair<iterator, bool>
     {
         if constexpr (std::is_same_v<std::decay_t<Key2>, key_type>)
-        { return do_emplace(key, std::forward<Key2>(key), std::forward<T2>(t)); }
+        {
+            return do_emplace(key, std::forward<Key2>(key), std::forward<T2>(t));
+        }
         else
         {
             key_type new_key{std::forward<Key2>(key)};
@@ -366,10 +409,12 @@ private:
     }
 
     template <class Pair>
-    std::pair<iterator, bool> dispatch_emplace(Pair&& p)
+    auto dispatch_emplace(Pair&& p) -> std::pair<iterator, bool>
     {
         if constexpr (std::is_same_v<std::decay_t<decltype(p.first)>, key_type>)
-        { return do_emplace(p.first, std::forward<Pair>(p)); }
+        {
+            return do_emplace(p.first, std::forward<Pair>(p));
+        }
         else
         {
             key_type new_key{std::forward<Pair>(p).first};
@@ -378,16 +423,16 @@ private:
     }
 
     template <class... Args1, class... Args2>
-    std::pair<iterator, bool> dispatch_emplace(
+    auto dispatch_emplace(
         std::piecewise_construct_t, std::tuple<Args1...> first_args,
-        std::tuple<Args2...> second_args)
+        std::tuple<Args2...> second_args) -> std::pair<iterator, bool>
     {
         std::pair<Key, T> p{std::piecewise_construct, first_args, second_args};
         return dispatch_emplace(std::move(p));
     }
 
     template <class... Args>
-    std::pair<iterator, bool> do_emplace(const key_type& key, Args&&... args)
+    auto do_emplace(const key_type& key, Args&&... args) -> std::pair<iterator, bool>
     {
         check_for_rehash();
 
@@ -395,7 +440,9 @@ private:
         auto local_it = find_in_bucket(key, bucket_index);
 
         if (local_it != end(0u))
-        { return {details::bucket_iterator_to_iterator(local_it, nodes_), false}; }
+        {
+            return {details::bucket_iterator_to_iterator(local_it, nodes_), false};
+        }
 
         nodes_.emplace_back(buckets_[bucket_index], std::forward<Args>(args)...);
         buckets_[bucket_index] = nodes_.size() - 1;
@@ -403,7 +450,7 @@ private:
         return std::prev(end());
     }
 
-    std::vector<size_type, allocator_type> buckets_;
+    std::vector<size_type, details::rebind_alloc<Allocator, size_type>> buckets_;
     entries_container_type nodes_;
     float max_load_factor_;
 

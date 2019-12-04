@@ -30,8 +30,7 @@ public:
 
     constexpr dense_hash_map_iterator() noexcept : sub_iterator_(sub_iterator_type{}) {}
 
-    explicit constexpr dense_hash_map_iterator(sub_iterator_type& it) noexcept
-        : sub_iterator_(it)
+    explicit constexpr dense_hash_map_iterator(sub_iterator_type& it) noexcept : sub_iterator_(it)
     {}
 
     explicit constexpr dense_hash_map_iterator(const dense_hash_map_iterator& other) noexcept
@@ -44,144 +43,152 @@ public:
         : sub_iterator_(other.sub_iterator_)
     {}
 
-    constexpr reference operator*() const noexcept
+    constexpr auto operator*() const noexcept -> reference
     {
-        if constexpr (projectToConstKey) { return sub_iterator_->pair.const_; }
+        if constexpr (projectToConstKey)
+        {
+            return sub_iterator_->pair.const_;
+        }
         else
         {
             return sub_iterator_->pair.non_const_;
         }
     }
 
-    constexpr pointer operator->() const noexcept
+    constexpr auto operator-> () const noexcept -> pointer
     {
-        if constexpr (projectToConstKey) { return &(sub_iterator_->pair.const_); }
+        if constexpr (projectToConstKey)
+        {
+            return &(sub_iterator_->pair.const_);
+        }
         else
         {
             return &(sub_iterator_->pair.non_const_);
         }
     }
 
-    constexpr dense_hash_map_iterator& operator++() noexcept
+    constexpr auto operator++() noexcept -> dense_hash_map_iterator&
     {
         ++sub_iterator_;
         return *this;
     }
 
-    constexpr dense_hash_map_iterator operator++(int) noexcept { return {sub_iterator_++}; }
+    constexpr auto operator++(int) noexcept -> dense_hash_map_iterator { return {sub_iterator_++}; }
 
-    constexpr dense_hash_map_iterator& operator--() noexcept
+    constexpr auto operator--() noexcept -> dense_hash_map_iterator&
     {
         --sub_iterator_;
         return *this;
     }
 
-    constexpr dense_hash_map_iterator operator--(int) noexcept { return {sub_iterator_--}; }
+    constexpr auto operator--(int) noexcept -> dense_hash_map_iterator { return {sub_iterator_--}; }
 
-    constexpr reference operator[](difference_type index) const noexcept
+    constexpr auto operator[](difference_type index) const noexcept -> reference
     {
-        if constexpr (projectToConstKey) { return sub_iterator_[index]->pair.const_; }
+        if constexpr (projectToConstKey)
+        {
+            return sub_iterator_[index]->pair.const_;
+        }
         else
         {
             return sub_iterator_[index]->pair.non_const_;
         }
     }
 
-    constexpr dense_hash_map_iterator& operator+=(difference_type n) noexcept
+    constexpr auto operator+=(difference_type n) noexcept -> dense_hash_map_iterator&
     {
         sub_iterator_ += n;
         return *this;
     }
 
-    constexpr dense_hash_map_iterator operator+(difference_type n) const noexcept
+    constexpr auto operator+(difference_type n) const noexcept -> dense_hash_map_iterator
     {
         return {sub_iterator_ + n};
     }
 
-    constexpr dense_hash_map_iterator& operator-=(difference_type n) noexcept
+    constexpr auto operator-=(difference_type n) noexcept -> dense_hash_map_iterator&
     {
         sub_iterator_ -= n;
         return *this;
     }
 
-    constexpr dense_hash_map_iterator operator-(difference_type n) const noexcept
+    constexpr auto operator-(difference_type n) const noexcept -> dense_hash_map_iterator
     {
         return {sub_iterator_ - n};
     }
 
-    const sub_iterator_type& sub_iterator() const {
-        return sub_iterator_;
-    }
+    auto sub_iterator() const -> const sub_iterator_type& { return sub_iterator_; }
 
 private:
     sub_iterator_type sub_iterator_;
 };
 
 template <class Key, class T, bool isConst, bool projectToConstKey>
-constexpr bool operator==(
+constexpr auto operator==(
     const dense_hash_map_iterator<Key, T, isConst, projectToConstKey>& lhs,
-    const dense_hash_map_iterator<Key, T, isConst, projectToConstKey>& rhs) noexcept
+    const dense_hash_map_iterator<Key, T, isConst, projectToConstKey>& rhs) noexcept -> bool
 {
     return lhs.sub_iterator() == rhs.sub_iterator();
 }
 
 template <class Key, class T, bool isConst, bool projectToConstKey>
-constexpr bool operator!=(
+constexpr auto operator!=(
     const dense_hash_map_iterator<Key, T, isConst, projectToConstKey>& lhs,
-    const dense_hash_map_iterator<Key, T, isConst, projectToConstKey>& rhs) noexcept
+    const dense_hash_map_iterator<Key, T, isConst, projectToConstKey>& rhs) noexcept -> bool
 {
     return lhs.sub_iterator() != rhs.sub_iterator();
 }
 
 template <class Key, class T, bool isConst, bool projectToConstKey>
-constexpr bool operator<(
+constexpr auto operator<(
     const dense_hash_map_iterator<Key, T, isConst, projectToConstKey>& lhs,
-    const dense_hash_map_iterator<Key, T, isConst, projectToConstKey>& rhs) noexcept
+    const dense_hash_map_iterator<Key, T, isConst, projectToConstKey>& rhs) noexcept -> bool
 {
     return lhs.sub_iterator() < rhs.sub_iterator();
 }
 
 template <class Key, class T, bool isConst, bool projectToConstKey>
-constexpr bool operator>(
+constexpr auto operator>(
     const dense_hash_map_iterator<Key, T, isConst, projectToConstKey>& lhs,
-    const dense_hash_map_iterator<Key, T, isConst, projectToConstKey>& rhs) noexcept
+    const dense_hash_map_iterator<Key, T, isConst, projectToConstKey>& rhs) noexcept -> bool
 {
     return lhs.sub_iterator() > rhs.sub_iterator();
 }
 
 template <class Key, class T, bool isConst, bool projectToConstKey>
-constexpr bool operator<=(
+constexpr auto operator<=(
     const dense_hash_map_iterator<Key, T, isConst, projectToConstKey>& lhs,
-    const dense_hash_map_iterator<Key, T, isConst, projectToConstKey>& rhs) noexcept
+    const dense_hash_map_iterator<Key, T, isConst, projectToConstKey>& rhs) noexcept -> bool
 {
     return lhs.sub_iterator() <= rhs.sub_iterator();
 }
 
 template <class Key, class T, bool isConst, bool projectToConstKey>
-constexpr bool operator>=(
+constexpr auto operator>=(
     const dense_hash_map_iterator<Key, T, isConst, projectToConstKey>& lhs,
-    const dense_hash_map_iterator<Key, T, isConst, projectToConstKey>& rhs) noexcept
+    const dense_hash_map_iterator<Key, T, isConst, projectToConstKey>& rhs) noexcept -> bool
 {
     return lhs.sub_iterator() >= rhs.sub_iterator();
 }
 
 template <class Key, class T, bool isConst, bool projectToConstKey>
-constexpr typename dense_hash_map_iterator<Key, T, isConst, projectToConstKey>::difference_type
-operator-(
+constexpr auto operator-(
     const dense_hash_map_iterator<Key, T, isConst, projectToConstKey>& lhs,
-    const dense_hash_map_iterator<Key, T, isConst, projectToConstKey>& rhs) noexcept
+    const dense_hash_map_iterator<Key, T, isConst, projectToConstKey>& rhs) noexcept ->
+    typename dense_hash_map_iterator<Key, T, isConst, projectToConstKey>::difference_type
 {
     return lhs.sub_iterator() - rhs.sub_iterator();
 }
 
 template <class Key, class T, bool isConst, bool projectToConstKey>
-constexpr dense_hash_map_iterator<Key, T, isConst, projectToConstKey> operator+(
+constexpr auto operator+(
     typename dense_hash_map_iterator<Key, T, isConst, projectToConstKey>::difference_type n,
     const dense_hash_map_iterator<Key, T, isConst, projectToConstKey>& it) noexcept
+    -> dense_hash_map_iterator<Key, T, isConst, projectToConstKey>
 {
     return {n + it.sub_iterator()};
 }
 
 } // namespace jg::details
 
-#endif// JG_DENSE_HASH_MAP_ITERATOR_HPP
+#endif // JG_DENSE_HASH_MAP_ITERATOR_HPP

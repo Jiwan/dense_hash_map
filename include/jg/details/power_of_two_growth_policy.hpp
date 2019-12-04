@@ -6,13 +6,14 @@
 namespace jg::details
 {
 
-struct power_of_two_growth_policy {
-    static constexpr std::size_t compute_index(std::size_t hash, std::size_t capacity)
+struct power_of_two_growth_policy
+{
+    static constexpr auto compute_index(std::size_t hash, std::size_t capacity) -> std::size_t
     {
         return hash & (capacity - 1);
     }
 
-    static constexpr std::size_t compute_closest_capacity(std::size_t min_capacity)
+    static constexpr auto compute_closest_capacity(std::size_t min_capacity) -> std::size_t
     {
         --min_capacity;
 
@@ -22,19 +23,17 @@ struct power_of_two_growth_policy {
         min_capacity |= min_capacity >> 8;
         min_capacity |= min_capacity >> 16;
 
-        if constexpr(sizeof(min_capacity) == 8) {
+        if constexpr (sizeof(min_capacity) == 8)
+        {
             min_capacity |= min_capacity >> 32;
         }
 
         return ++min_capacity;
     }
 
-    static constexpr std::size_t minimum_capacity()
-    {
-        return 8u;
-    } 
+    static constexpr auto minimum_capacity() -> std::size_t { return 8u; }
 };
 
-}
+} // namespace jg::details
 
 #endif // JG_POWER_OF_TWO_GROWTH_POLICY_HPP
