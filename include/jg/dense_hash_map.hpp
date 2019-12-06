@@ -26,8 +26,7 @@ namespace details
         std::vector<node<Key, T>>& vec)
         -> dense_hash_map_iterator<Key, T, isConst, projectToConstKey>
     {
-        return {bucket_it.current_node_index(),
-                std::next(vec.begin(), bucket_it.current_node_index())};
+        return dense_hash_map_iterator<Key, T, isConst, projectToConstKey>{std::next(vec.begin(), bucket_it.current_node_index())};
     }
 
     template <class Key, class T, bool isConst, bool projectToConstKey>
@@ -36,7 +35,7 @@ namespace details
         -> dense_hash_map_iterator<Key, T, false, true>
     {
         const auto distance = std::distance(vec.cbegin(), const_it);
-        return {std::next(vec.begin(), distance)};
+        return dense_hash_map_iterator<Key, T, isConst, projectToConstKey>{std::next(vec.begin(), distance)};
     }
 
     template <class Alloc, class T>
@@ -53,7 +52,7 @@ private:
     using node_type = details::node<Key, T>;
     using entries_container_type =
         std::vector<node_type, details::rebind_alloc<Allocator, node_type>>;
-    using node_index_type = details::node_index_type<Key, T>;
+    using node_index_type = details::node_index_t<Key, T>;
     using GrowthPolicy::compute_closest_capacity;
     using GrowthPolicy::compute_index;
     using GrowthPolicy::minimum_capacity;
@@ -197,7 +196,7 @@ public:
     template <class... Args>
     auto emplace(Args&&... args) -> std::pair<iterator, bool>
     {
-        dispatch_emplace(std::forward<Args>(args)...);
+        return dispatch_emplace(std::forward<Args>(args)...);
     }
 
     template <class... Args>
@@ -221,17 +220,17 @@ public:
         // TODO: re-init the container.
     }
 
-    auto begin() noexcept -> iterator { return {nodes_.begin()}; }
+    auto begin() noexcept -> iterator { return iterator{nodes_.begin()}; }
 
-    auto begin() const noexcept -> const_iterator { return {nodes_.begin()}; }
+    auto begin() const noexcept -> const_iterator { return const_iterator{nodes_.begin()}; }
 
-    auto cbegin() const noexcept -> const_iterator { return {nodes_.cbegin()}; }
+    auto cbegin() const noexcept -> const_iterator { return const_iterator{nodes_.cbegin()}; }
 
-    auto end() noexcept -> iterator { return {nodes_.end()}; }
+    auto end() noexcept -> iterator { return iterator{nodes_.end()}; }
 
-    auto end() const noexcept -> const_iterator { return {nodes_.end()}; }
+    auto end() const noexcept -> const_iterator { return const_iterator{nodes_.end()}; }
 
-    auto cend() const noexcept -> const_iterator { return {nodes_.cend()}; }
+    auto cend() const noexcept -> const_iterator { return const_iterator{nodes_.cend()}; }
 
     auto begin(size_type n) -> local_iterator { return {buckets_[n], nodes_}; }
 
@@ -266,7 +265,7 @@ public:
     void rehash(size_type count)
     {
         count = std::max(minimum_capacity(), count);
-        count = std::max(count, (size() / max_load_factor()));
+        count = std::max(count, static_cast<size_type>(size() / max_load_factor()));
 
         std::fill(buckets_.begin(), buckets_.end(), node_end_index);
 
@@ -328,7 +327,7 @@ private:
         auto b = begin(buckets_[bucket_index]);
         auto e = end(0u);
         auto it =
-            std::find(b, e, [&key, this](auto& p) { return key_equal_(p.const_.first, key); });
+            std::find_if(b, e, [&key, this](auto& p) { return key_equal_(p.first, key); });
         return it;
     }
 
@@ -441,13 +440,13 @@ private:
 
         if (local_it != end(0u))
         {
-            return {details::bucket_iterator_to_iterator(local_it, nodes_), false};
+            return std::pair{details::bucket_iterator_to_iterator(local_it, nodes_), false};
         }
 
         nodes_.emplace_back(buckets_[bucket_index], std::forward<Args>(args)...);
         buckets_[bucket_index] = nodes_.size() - 1;
 
-        return std::prev(end());
+        return std::pair{std::prev(end()), true};
     }
 
     std::vector<size_type, details::rebind_alloc<Allocator, size_type>> buckets_;

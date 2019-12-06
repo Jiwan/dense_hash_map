@@ -19,21 +19,21 @@ private:
         typename entries_container_type::iterator>::type;
     using sub_iterator_type_traits = std::iterator_traits<sub_iterator_type>;
     using projected_type =
-        std::pair<typename std::conditional<projectToConstKey, Key, const Key>::type, T>;
+        std::pair<typename std::conditional<projectToConstKey, const Key, Key>::type, T>;
 
 public:
     using iterator_category = typename sub_iterator_type_traits::iterator_category;
-    using value_type = std::conditional<isConst, const projected_type, projected_type>;
+    using value_type = std::conditional_t<isConst, const projected_type, projected_type>;
     using difference_type = typename sub_iterator_type_traits::difference_type;
     using reference = value_type&;
     using pointer = value_type*;
 
     constexpr dense_hash_map_iterator() noexcept : sub_iterator_(sub_iterator_type{}) {}
 
-    explicit constexpr dense_hash_map_iterator(sub_iterator_type& it) noexcept : sub_iterator_(it)
+    explicit constexpr dense_hash_map_iterator(sub_iterator_type it) noexcept : sub_iterator_(std::move(it))
     {}
 
-    explicit constexpr dense_hash_map_iterator(const dense_hash_map_iterator& other) noexcept
+    constexpr dense_hash_map_iterator(const dense_hash_map_iterator& other) noexcept
         : sub_iterator_(other.sub_iterator_)
     {}
 

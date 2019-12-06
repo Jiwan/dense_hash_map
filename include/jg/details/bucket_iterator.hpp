@@ -13,13 +13,13 @@ template <class Key, class T, bool isConst, bool projectToConstKey>
 class bucket_iterator
 {
     using entries_container_type = std::vector<node<Key, T>>;
-    using node_index_type = node_index_type<Key, T>;
+    using node_index_type = node_index_t<Key, T>;
     using projected_type =
-        std::pair<typename std::conditional<projectToConstKey, Key, const Key>::type, T>;
+        std::pair<typename std::conditional<projectToConstKey, const Key, Key>::type, T>;
 
 public:
     using iterator_category = std::forward_iterator_tag;
-    using value_type = std::conditional<isConst, const projected_type, projected_type>;
+    using value_type = std::conditional_t<isConst, const projected_type, projected_type>;
     using difference_type = std::ptrdiff_t;
     using reference = value_type&;
     using pointer = value_type*;
@@ -37,17 +37,17 @@ public:
     {
         if constexpr (projectToConstKey)
         {
-            return entries_container_[current_node_index_].pair.const_;
+            return (*entries_container_)[current_node_index_].pair.const_;
         }
         else
         {
-            return entries_container_[current_node_index_].pair.non_const_;
+            return (*entries_container_)[current_node_index_].pair.non_const_;
         }
     }
 
     constexpr auto operator++() noexcept -> bucket_iterator&
     {
-        current_node_index_ = entries_container_[current_node_index_].next;
+        current_node_index_ = (*entries_container_)[current_node_index_].next;
         return *this;
     }
 
@@ -62,11 +62,11 @@ public:
     {
         if constexpr (projectToConstKey)
         {
-            return &entries_container_[current_node_index_].pair.const_;
+            return &(*entries_container_)[current_node_index_].pair.const_;
         }
         else
         {
-            return &entries_container_[current_node_index_].pair.non_const_;
+            return &(*entries_container_)[current_node_index_].pair.non_const_;
         }
     }
 
