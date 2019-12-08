@@ -1,3 +1,5 @@
 build/
 .clangd/
-*.swp
+*.wp
+compile_commands.json
+.vscode/
