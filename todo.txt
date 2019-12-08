@@ -1,0 +1,10 @@
+- Unit-tests for all functions and stuff.
+- Disable copy-constructor for pair types that do not support them.
+- Move only types...
+- Slap constexpr as much as possible.
+- noexcept as much as possible!
+- Test allocator support.
+- Pass test with ASAN and UBSAN.
+- Benchmarks.
+- Setup travis.
+- Doc.

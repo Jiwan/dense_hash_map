@@ -7,6 +7,7 @@
 #include "details/power_of_two_growth_policy.hpp"
 
 #include <algorithm>
+#include <cassert>
 #include <functional>
 #include <iterator>
 #include <memory>
@@ -166,6 +167,8 @@ public:
         : dense_hash_map(init, bucket_count, hash, key_equal(), alloc)
     {}
 
+    ~dense_hash_map() = default;
+
     constexpr auto get_allocator() const -> allocator_type { return alloc_; }
 
     constexpr auto insert(const value_type& value) -> std::pair<iterator, bool>
@@ -184,6 +187,22 @@ public:
         return emplace(std::forward<P>(value));
     }
 
+    constexpr auto insert(const_iterator /*hint*/, const value_type& value) -> iterator
+    {
+        return insert(value).first;
+    }
+
+    constexpr auto insert(const_iterator /*hint*/, value_type&& value) -> iterator
+    {
+        return insert(std::move(value)).first;
+    }
+
+    template<class P, std::enable_if_t<std::is_constructible_v<value_type, P&&>, int> = 0>
+    constexpr auto insert(const_iterator /*hint*/, P&& value) -> iterator
+    {
+        return insert(std::move(value)).first;
+    }
+
     template <class InputIt>
     constexpr void insert(InputIt first, InputIt last)
     {
@@ -191,6 +210,11 @@ public:
         {
             insert(*first);
         }
+    }
+
+    constexpr void insert(std::initializer_list<value_type> ilist)
+    {
+        insert(ilist.begin(), ilist.end());
     }
 
     template <class... Args>
@@ -207,6 +231,26 @@ public:
             std::forward_as_tuple(std::forward<Args>(args)...));
     }
 
+    template <class... Args>
+    constexpr auto try_emplace(key_type&& key, Args&&... args) -> std::pair<iterator, bool>
+    {
+        return do_emplace(
+            key, std::piecewise_construct, std::forward_as_tuple(std::move(key)),
+            std::forward_as_tuple(std::forward<Args>(args)...));
+    }
+
+    template <class... Args>
+    constexpr auto try_emplace(const_iterator /*hint*/, const key_type& key, Args&&... args) -> iterator
+    {
+        return try_emplace(key, std::forward<Args>(args)...).iterator;
+    }
+
+    template <class... Args>
+    constexpr auto try_emplace(const_iterator /*hint*/, key_type&& key, Args&&... args) -> iterator
+    {
+        return try_emplace(std::move(key), std::forward<Args>(args)...).iterator;
+    }
+
     [[nodiscard]] auto empty() const noexcept -> bool { return nodes_.empty(); }
 
     auto size() const noexcept -> size_type { return nodes_.size(); }
@@ -217,7 +261,7 @@ public:
     {
         nodes_.clear();
         buckets_.clear();
-        // TODO: re-init the container.
+        rehash(0u);
     }
 
     auto begin() noexcept -> iterator { return iterator{nodes_.begin()}; }
@@ -260,12 +304,22 @@ public:
 
     auto max_load_factor() const -> float { return max_load_factor_; }
 
-    void max_load_factor(float ml) { max_load_factor_ = ml; }
+    void max_load_factor(float ml)
+    { 
+        assert(ml > 0.0f);    
+        max_load_factor_ = ml; 
+    }
 
     void rehash(size_type count)
     {
         count = std::max(minimum_capacity(), count);
         count = std::max(count, static_cast<size_type>(size() / max_load_factor()));
+
+        if (count == buckets_.size()) {
+            return;
+        }
+
+        buckets_.resize(count);
 
         std::fill(buckets_.begin(), buckets_.end(), node_end_index);
 
@@ -324,7 +378,7 @@ public:
 private:
     auto find_in_bucket(const key_type& key, std::size_t bucket_index) -> local_iterator
     {
-        auto b = begin(buckets_[bucket_index]);
+        auto b = begin(bucket_index);
         auto e = end(0u);
         auto it =
             std::find_if(b, e, [&key, this](auto& p) { return key_equal_(p.first, key); });
@@ -389,8 +443,7 @@ private:
 
     constexpr auto dispatch_emplace() -> std::pair<iterator, bool>
     {
-        key_type new_key{};
-        return do_emplace(new_key, std::move(new_key));
+        return do_emplace(key_type{});
     }
 
     template <class Key2, class T2>
@@ -403,6 +456,7 @@ private:
         else
         {
             key_type new_key{std::forward<Key2>(key)};
+            // TODO: double check that I am allowed to optimized by sending new_key here and not key https://eel.is/c++draft/unord.req#lib:emplace,unordered_associative_containers
             return do_emplace(new_key, std::move(new_key), std::forward<T2>(t));
         }
     }
@@ -426,7 +480,7 @@ private:
         std::piecewise_construct_t, std::tuple<Args1...> first_args,
         std::tuple<Args2...> second_args) -> std::pair<iterator, bool>
     {
-        std::pair<Key, T> p{std::piecewise_construct, first_args, second_args};
+        std::pair<Key, T> p{std::piecewise_construct, std::move(first_args), std::move(second_args)};
         return dispatch_emplace(std::move(p));
     }
 
@@ -451,7 +505,7 @@ private:
 
     std::vector<size_type, details::rebind_alloc<Allocator, size_type>> buckets_;
     entries_container_type nodes_;
-    float max_load_factor_;
+    float max_load_factor_ = details::default_max_load_factor;
 
     // TODO: EBO
     hasher hash_;
