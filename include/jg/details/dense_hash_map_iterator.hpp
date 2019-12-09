@@ -13,6 +13,8 @@ template <class Key, class T, bool isConst, bool projectToConstKey>
 class dense_hash_map_iterator
 {
 private:
+    friend dense_hash_map_iterator<Key, T, true, projectToConstKey>;
+
     using entries_container_type = std::vector<node<Key, T>>;
     using sub_iterator_type = typename std::conditional<
         isConst, typename entries_container_type::const_iterator,
@@ -33,9 +35,11 @@ public:
     explicit constexpr dense_hash_map_iterator(sub_iterator_type it) noexcept : sub_iterator_(std::move(it))
     {}
 
-    constexpr dense_hash_map_iterator(const dense_hash_map_iterator& other) noexcept
-        : sub_iterator_(other.sub_iterator_)
-    {}
+    constexpr dense_hash_map_iterator(const dense_hash_map_iterator& other) noexcept = default;
+    constexpr dense_hash_map_iterator(dense_hash_map_iterator&& other) noexcept = default;
+
+    constexpr dense_hash_map_iterator& operator=(const dense_hash_map_iterator& other) noexcept = default;
+    constexpr dense_hash_map_iterator& operator=(dense_hash_map_iterator&& other) noexcept = default;
 
     template <bool DepIsConst = isConst, std::enable_if_t<DepIsConst, int> = 0>
     constexpr dense_hash_map_iterator(

@@ -171,6 +171,13 @@ public:
 
     constexpr auto get_allocator() const -> allocator_type { return alloc_; }
 
+    void clear() noexcept
+    {
+        nodes_.clear();
+        buckets_.clear();
+        rehash(0u);
+    }
+
     constexpr auto insert(const value_type& value) -> std::pair<iterator, bool>
     {
         return emplace(value);
@@ -217,6 +224,42 @@ public:
         insert(ilist.begin(), ilist.end());
     }
 
+    template <class M>
+    constexpr std::pair<iterator, bool> insert_or_assign(const key_type& k, M&& obj)
+    {
+        auto result = try_emplace(k, std::forward<M>(obj));
+
+        if (!result.second) {
+            result.first->second = std::forward<M>(obj);
+        }
+
+        return result;
+    }
+    
+    template <class M>
+    constexpr std::pair<iterator, bool> insert_or_assign(key_type&& k, M&& obj)
+    {
+        auto result = try_emplace(std::move(k), std::forward<M>(obj));
+
+        if (!result.second) {
+            result.first->second = std::forward<M>(obj);
+        }
+
+        return result;
+    }
+
+    template <class M>
+    constexpr iterator insert_or_assign(const_iterator /*hint*/, const key_type& k, M&& obj)
+    {
+        return insert_or_assign(k, std::forward<M>(obj));
+    }
+
+    template <class M>
+    constexpr iterator insert_or_assign(const_iterator /*hint*/, key_type&& k, M&& obj)
+    {
+        return insert_or_assign(std::move(k), std::forward<M>(obj));
+    }
+
     template <class... Args>
     auto emplace(Args&&... args) -> std::pair<iterator, bool>
     {
@@ -256,13 +299,6 @@ public:
     auto size() const noexcept -> size_type { return nodes_.size(); }
 
     auto max_size() const noexcept -> size_type { return nodes_.max_size(); }
-
-    void clear() noexcept
-    {
-        nodes_.clear();
-        buckets_.clear();
-        rehash(0u);
-    }
 
     auto begin() noexcept -> iterator { return iterator{nodes_.begin()}; }
 
@@ -371,9 +407,9 @@ public:
         return 1;
     }
 
-    auto find(const Key& key) -> iterator { return find_in_bucket(key, bucket(key)); }
+    auto find(const Key& key) -> iterator { return details::bucket_iterator_to_iterator(find_in_bucket(key, bucket(key)), nodes_); }
 
-    auto find(const Key& key) const -> const_iterator { return find_in_bucket(key, bucket(key)); }
+    auto find(const Key& key) const -> const_iterator { return details::bucket_iterator_to_iterator(find_in_bucket(key, bucket(key)), nodes_); }
 
 private:
     auto find_in_bucket(const key_type& key, std::size_t bucket_index) -> local_iterator

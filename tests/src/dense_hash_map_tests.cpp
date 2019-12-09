@@ -95,6 +95,9 @@ TEST_CASE("clear")
 template <class T, class V>
 using has_insert = decltype(std::declval<T>().insert(std::declval<V>()));
 
+template <class T, class V>
+using has_insert_hint = decltype(std::declval<T>().insert(std::declval<T>().begin(), std::declval<V>()));
+
 TEST_CASE("insert")
 {
     jg::dense_hash_map<std::string, int> m;
@@ -143,7 +146,89 @@ TEST_CASE("insert")
         REQUIRE_FALSE(jg::details::is_detected<has_insert, jg::dense_hash_map<std::vector<int>, int>, std::pair<bool, std::string>>::value);
     }
 
-    // TODO: all other insert functions.
+    SECTION("insert - lvalue - hint")
+    {
+        auto pair = std::pair(std::string("test"), 42);
+        const auto& it = m.insert(m.begin(), pair);
+        REQUIRE(it != m.end());
+        REQUIRE(it->first == "test");
+        REQUIRE(it->second == 42);
+        REQUIRE(m.size() == 1);
+    }
+
+    SECTION("insert - const lvalue - hint")
+    {
+        const auto pair = std::pair(std::string("test"), 42);
+        const auto& it = m.insert(m.begin(), pair);
+        REQUIRE(it != m.end());
+        REQUIRE(it->first == "test");
+        REQUIRE(it->second == 42);
+        REQUIRE(m.size() == 1);
+    }
+
+    SECTION("insert - rvalue - hint")
+    {
+        const auto& it = m.insert(m.begin(), std::pair(std::string("test"), 42));
+        REQUIRE(it != m.end());
+        REQUIRE(it->first == "test");
+        REQUIRE(it->second == 42);
+        REQUIRE(m.size() == 1);
+    }
+
+    SECTION("insert - conversion - hint")
+    {
+        auto pair = std::pair("test", 42);
+        const auto& it = m.insert(m.begin(), pair);
+        REQUIRE(it != m.end());
+        REQUIRE(it->first == "test");
+        REQUIRE(it->second == 42);
+        REQUIRE(m.size() == 1);
+    }
+
+    SECTION("insert - conversion is SFINAE friendly - hint")
+    {
+        REQUIRE_FALSE(jg::details::is_detected<has_insert_hint, jg::dense_hash_map<std::vector<int>, int>, std::pair<bool, std::string>>::value);
+    }
+
+    SECTION("insert - iterator")
+    {
+        std::vector<std::pair<std::string, int>> v{{"test", 42}, {"test2", 1337}};
+        m.insert(v.begin(), v.end());
+
+        REQUIRE(m.size() == 2);
+
+        auto it = m.find("test");
+        REQUIRE(it != m.end());
+        REQUIRE(it->second == 42);
+
+        it = m.find("test2");
+        REQUIRE(it != m.end());
+        REQUIRE(it->second == 1337);
+    }
+
+    SECTION("insert - initializer_list")
+    {
+        std::initializer_list<std::pair<const std::string, int>> l{{"test", 42}, {"test2", 1337}};
+        m.insert(l);
+
+        REQUIRE(m.size() == 2);
+
+        auto it = m.find("test");
+        REQUIRE(it != m.end());
+        REQUIRE(it->second == 42);
+
+        it = m.find("test2");
+        REQUIRE(it != m.end());
+        REQUIRE(it->second == 1337);
+    }
+}
+
+TEST_CASE("insert_or_assign")
+{
+    jg::dense_hash_map<std::string, int> m1;
+    jg::dense_hash_map<std::string, std::unique_ptr<int>> m2;
+
+    // TODO: moar of that!
 }
 
 TEST_CASE("emplace", "[emplace]")
