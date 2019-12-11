@@ -12,9 +12,8 @@ namespace jg::details
 template <class Key, class T, bool isConst, bool projectToConstKey>
 class dense_hash_map_iterator
 {
-private:
     friend dense_hash_map_iterator<Key, T, true, projectToConstKey>;
-
+public:
     using entries_container_type = std::vector<node<Key, T>>;
     using sub_iterator_type = typename std::conditional<
         isConst, typename entries_container_type::const_iterator,
@@ -23,7 +22,6 @@ private:
     using projected_type =
         std::pair<typename std::conditional<projectToConstKey, const Key, Key>::type, T>;
 
-public:
     using iterator_category = typename sub_iterator_type_traits::iterator_category;
     using value_type = std::conditional_t<isConst, const projected_type, projected_type>;
     using difference_type = typename sub_iterator_type_traits::difference_type;

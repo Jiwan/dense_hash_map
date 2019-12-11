@@ -48,6 +48,15 @@ auto operator==(const increase_counter_on_copy_or_move&, const increase_counter_
 {
     return true;
 }
+
+struct collision_hasher {
+    template <class T>
+    auto operator()(T&&) const noexcept -> std::size_t
+    {
+        return 0;
+    }
+};
+
 }
 
 namespace std {
@@ -226,9 +235,62 @@ TEST_CASE("insert")
 TEST_CASE("insert_or_assign")
 {
     jg::dense_hash_map<std::string, int> m1;
-    jg::dense_hash_map<std::string, std::unique_ptr<int>> m2;
+    jg::dense_hash_map<std::unique_ptr<int>, int> m2;
+    
 
-    // TODO: moar of that!
+    SECTION("l-value key")
+    {
+        const auto& [it, result] = m1.insert_or_assign("test", 42);
+        REQUIRE(result);
+        REQUIRE(it->first == "test");
+        REQUIRE(it->second == 42);
+
+        const auto& [it2, result2] = m1.insert_or_assign("test", 1337);
+        REQUIRE_FALSE(result2);
+        REQUIRE(it2 == it);
+        REQUIRE(it2->first == "test");
+        REQUIRE(it2->second == 1337);
+    }
+
+    SECTION("r-value key")
+    {
+        const auto& [it, result] = m2.insert_or_assign(nullptr, 42);
+        REQUIRE(result);
+        REQUIRE(it->first == nullptr);
+        REQUIRE(it->second == 42);
+
+        std::unique_ptr<int> p = nullptr;
+        const auto& [it2, result2] = m2.insert_or_assign(std::move(p), 1337);
+        REQUIRE_FALSE(result2);
+        REQUIRE(it2 == it);
+        REQUIRE(it2->first == nullptr);
+        REQUIRE(it2->second == 1337);
+    }
+
+    SECTION("l-value key - hint")
+    {
+        auto it = m1.insert_or_assign(m1.begin(), "test", 42);
+        REQUIRE(it->first == "test");
+        REQUIRE(it->second == 42);
+
+        auto it2 = m1.insert_or_assign(m1.begin(), "test", 1337);
+        REQUIRE(it == it);
+        REQUIRE(it2->first == "test");
+        REQUIRE(it2->second == 1337);
+    }
+
+    SECTION("r-value key - hint")
+    {
+        auto it = m2.insert_or_assign(m2.begin(), nullptr, 42);
+        REQUIRE(it->first == nullptr);
+        REQUIRE(it->second == 42);
+
+        std::unique_ptr<int> p = nullptr;
+        auto it2 = m2.insert_or_assign(m2.begin(), std::move(p), 1337);
+        REQUIRE(it2 == it);
+        REQUIRE(it2->first == nullptr);
+        REQUIRE(it2->second == 1337);
+    }
 }
 
 TEST_CASE("emplace", "[emplace]")
@@ -335,6 +397,21 @@ TEST_CASE("emplace", "[emplace]")
     }
 }
 
+TEST_CASE("emplace key rvalue")
+{
+    jg::dense_hash_map<std::unique_ptr<int>, int> m; 
+
+    SECTION("Successfull emplace")
+    {
+        auto ptr = std::make_unique<int>(37);
+        const auto& [it, result] = m.emplace(std::move(ptr), 42);
+        REQUIRE(result);
+        REQUIRE(*it->first == 37);
+        REQUIRE(it->second == 42);
+        REQUIRE(ptr == nullptr);
+    }
+}
+
 TEST_CASE("emplace twice", "[emplace]")
 {
     jg::dense_hash_map<std::string, int> m;
@@ -413,6 +490,30 @@ TEST_CASE("emplace optimization", "[emplace]")
         m.emplace(std::move(p));
 
         REQUIRE(counter_after_insertion == counter);
+    }
+}
+
+TEST_CASE("emplace_hint")
+{
+    jg::dense_hash_map<std::string, int> m;
+
+    SECTION("one")
+    {
+        const auto& it = m.emplace_hint(m.begin(), "bob", 666);
+        REQUIRE(it != m.end());
+        REQUIRE(it->first == "bob");
+        REQUIRE(it->second == 666);
+        REQUIRE(m.size() == 1);
+    }
+
+    SECTION("twice")
+    {
+        const auto& it1 = m.emplace_hint(m.begin(), "bob", 666);
+        const auto& it2 = m.emplace_hint(m.begin(), "bob", 444);
+        REQUIRE(it1 == it2);
+        REQUIRE(it2->first == "bob");
+        REQUIRE(it2->second == 666);
+        REQUIRE(m.size() == 1);
     }
 }
 
@@ -516,6 +617,193 @@ TEST_CASE("try_emplace effects guarantees", "[try_emplace]")
         m.try_emplace(std::move(key), 42);
 
         REQUIRE(counter_after_insertion == counter);
+    }
+}
+
+TEST_CASE("erase iterator", "[erase]")
+{
+    jg::dense_hash_map<std::string, int> m;
+    const auto& [useless1, result1] = m.emplace("bob", 42);
+    const auto& [useless2, result2] = m.emplace("jacky", 42);
+    const auto& [useless3, result3] = m.emplace("snoop", 42);
+
+    REQUIRE(result1);
+    REQUIRE(result2);
+    REQUIRE(result3);
+    REQUIRE(m.find("bob") != m.end());
+    REQUIRE(m.find("jacky") != m.end());
+    REQUIRE(m.find("snoop") != m.end());
+    REQUIRE(m.size() == 3);
+
+    SECTION("using first iterator")
+    {
+        auto new_it = m.erase(m.begin());
+        REQUIRE(new_it != m.end());
+        REQUIRE(m.size() == 2);
+        REQUIRE(new_it->first == "snoop");
+        REQUIRE(m.find("bob") == m.end());
+        REQUIRE(m.find("jacky") != m.end());
+        REQUIRE(m.find("snoop") != m.end());
+    }
+
+    SECTION("using middle iterator")
+    {
+        auto it = m.find("jacky");
+        REQUIRE(it != m.end());
+        auto new_it = m.erase(it);
+        REQUIRE(new_it != m.end());
+        REQUIRE(m.size() == 2);
+        REQUIRE(new_it->first == "snoop");
+        REQUIRE(m.find("bob") != m.end());
+        REQUIRE(m.find("jacky") == m.end());
+        REQUIRE(m.find("snoop") != m.end());
+    }
+
+    SECTION("using last iterator")
+    {
+        auto new_it = m.erase(std::prev(m.end()));
+        REQUIRE(new_it == m.end());
+        REQUIRE(m.size() == 2);
+        REQUIRE(m.find("bob") != m.end());
+        REQUIRE(m.find("jacky") != m.end());
+        REQUIRE(m.find("snoop") == m.end());
+    }
+}
+
+TEST_CASE("erase key", "[erase]")
+{
+    jg::dense_hash_map<std::string, int> m;
+    const auto& [useless1, result1] = m.emplace("bob", 42);
+    const auto& [useless2, result2] = m.emplace("jacky", 42);
+    const auto& [useless3, result3] = m.emplace("snoop", 42);
+
+    REQUIRE(result1);
+    REQUIRE(result2);
+    REQUIRE(result3);
+    REQUIRE(m.find("bob") != m.end());
+    REQUIRE(m.find("jacky") != m.end());
+    REQUIRE(m.find("snoop") != m.end());
+    REQUIRE(m.size() == 3);
+
+    SECTION("success")
+    {
+        REQUIRE(m.erase("bob") > 0);
+        REQUIRE(m.size() == 2);
+        REQUIRE(m.find("bob") == m.end());
+        REQUIRE(m.find("jacky") != m.end());
+        REQUIRE(m.find("snoop") != m.end());
+    }
+
+    SECTION("failure")
+    {
+        REQUIRE(m.erase("bobby") == 0);
+        REQUIRE(m.size() == 3);
+        REQUIRE(m.find("bob") != m.end());
+        REQUIRE(m.find("jacky") != m.end());
+        REQUIRE(m.find("snoop") != m.end());
+    }
+}
+
+TEST_CASE("erase with collisions", "[erase]")
+{
+    jg::dense_hash_map<std::string, int, collision_hasher> m;
+
+    const auto& [useless1, result1] = m.emplace("bob", 42);
+    const auto& [useless2, result2] = m.emplace("jacky", 42);
+    const auto& [useless3, result3] = m.emplace("snoop", 42);
+
+    REQUIRE(result1);
+    REQUIRE(result2);
+    REQUIRE(result3);
+    auto bob_it = m.find("bob");
+    auto jacky_it = m.find("jacky");
+    auto snoop_it = m.find("snoop");
+    REQUIRE(bob_it != m.end());
+    REQUIRE(jacky_it != m.end());
+    REQUIRE(snoop_it != m.end());
+    REQUIRE(m.size() == 3);
+
+    SECTION("remove first in bucket")
+    {
+        REQUIRE(m.erase("snoop") > 0);
+        REQUIRE(m.size() == 2);
+        REQUIRE(m.find("bob") != m.end());
+        REQUIRE(m.find("jacky") != m.end());
+        REQUIRE(m.find("snoop") == m.end());
+    }
+
+    SECTION("remove mid in bucket")
+    {
+        REQUIRE(m.erase("jacky") > 0);
+        REQUIRE(m.size() == 2);
+        REQUIRE(m.find("bob") != m.end());
+        REQUIRE(m.find("jacky") == m.end());
+        REQUIRE(m.find("snoop") != m.end());
+    }
+
+    SECTION("remove last in bucket")
+    {
+        REQUIRE(m.erase("bob") > 0);
+        REQUIRE(m.size() == 2);
+        REQUIRE(m.find("bob") == m.end());
+        REQUIRE(m.find("jacky") != m.end());
+        REQUIRE(m.find("snoop") != m.end());
+    }
+}
+
+TEST_CASE("range erase")
+{
+    jg::dense_hash_map<std::string, int> m;
+    const auto& [useless1, result1] = m.emplace("bob", 42);
+    const auto& [useless2, result2] = m.emplace("jacky", 42);
+    const auto& [useless3, result3] = m.emplace("snoop", 42);
+
+    REQUIRE(result1);
+    REQUIRE(result2);
+    REQUIRE(result3);
+    REQUIRE(m.find("bob") != m.end());
+    REQUIRE(m.find("jacky") != m.end());
+    REQUIRE(m.find("snoop") != m.end());
+    REQUIRE(m.size() == 3);
+
+    SECTION("all")
+    {
+        auto it = m.erase(m.begin(), m.end());
+        REQUIRE(it == m.end());
+        REQUIRE(m.size() == 0);
+        REQUIRE(m.find("bob") == m.end());
+        REQUIRE(m.find("jacky") == m.end());
+        REQUIRE(m.find("snoop") == m.end());
+    }
+
+    SECTION("two first")
+    {
+        auto it = m.erase(m.begin(), std::prev(m.end()));
+        REQUIRE(it->first == "snoop");
+        REQUIRE(m.size() == 1);
+        REQUIRE(m.find("bob") == m.end());
+        REQUIRE(m.find("jacky") == m.end());
+        REQUIRE(m.find("snoop") != m.end());
+    }
+
+    SECTION("two last")
+    {
+        auto it = m.erase(std::next(m.begin()), m.end());
+        REQUIRE(it == m.end());
+        REQUIRE(m.size() == 1);
+        REQUIRE(m.find("bob") != m.end());
+        REQUIRE(m.find("jacky") == m.end());
+        REQUIRE(m.find("snoop") == m.end());
+    }
+
+    SECTION("none")
+    {
+        auto it = m.erase(m.begin(), m.begin());
+        REQUIRE(it == m.begin());
+        REQUIRE(m.size() == 3);
+        REQUIRE(m.find("bob") != m.end());
+        REQUIRE(m.find("jacky") != m.end());
+        REQUIRE(m.find("snoop") != m.end());
     }
 }
 

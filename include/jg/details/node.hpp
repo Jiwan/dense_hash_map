@@ -9,7 +9,7 @@
 namespace jg::details
 {
 
-template <class Key, class T>
+template <class Key, class T, class Pair = std::pair<Key, T>>
 struct node;
 
 template <class Key, class T>
@@ -37,24 +37,26 @@ union key_value_pair
         std::allocator_traits<std::remove_cvref_t<Allocator>>::construct(std::forward<Allocator>(alloc), &non_const_, std::forward<Args>(args)...);
     }
 
-    constexpr key_value_pair(const key_value_pair& other) // TODO: noexcept and enable_if_t
+    constexpr key_value_pair(const key_value_pair& other) noexcept(std::is_nothrow_copy_constructible_v<non_const_pair>)
         : non_const_(other.non_const_)
     {
     }
 
-    constexpr key_value_pair(key_value_pair&& other) // TODO: noexcept and enable_if_t
+    constexpr key_value_pair(key_value_pair&& other) noexcept(std::is_nothrow_move_constructible_v<non_const_pair>)
         : non_const_(std::move(other.non_const_))
     {
     }
 
-    constexpr auto operator=(const key_value_pair& other) -> key_value_pair& // TODO: noexcept and enable_if_t
+    constexpr auto operator=(const key_value_pair& other) noexcept(std::is_nothrow_copy_assignable_v<non_const_pair>) -> key_value_pair& 
     {
         non_const_ = other.non_const_;
+        return *this;
     }
 
-    constexpr auto operator=(key_value_pair&& other) -> key_value_pair&& // TODO: noexcept and enable_if_t
+    constexpr auto operator=(key_value_pair&& other) noexcept(std::is_nothrow_move_assignable_v<non_const_pair>) -> key_value_pair&
     {
         non_const_ = std::move(other).non_const_;
+        return *this;
     }
 
     ~key_value_pair()
@@ -66,8 +68,68 @@ union key_value_pair
     const_pair const_;
 };
 
-template <class Key, class T>
-struct node
+template <class T, bool = std::is_copy_constructible_v<T>>
+struct disable_copy_constructor
+{
+    disable_copy_constructor() = default;
+    disable_copy_constructor(const disable_copy_constructor&) = delete;
+    disable_copy_constructor(disable_copy_constructor&&) = default;
+    disable_copy_constructor& operator=(const disable_copy_constructor&) = default;
+    disable_copy_constructor& operator=(disable_copy_constructor&&) = default;
+};
+
+template <class T>
+struct disable_copy_constructor<T, true>
+{
+};
+
+template <class T, bool = std::is_copy_assignable_v<T>>
+struct disable_copy_assignment
+{
+    disable_copy_assignment() = default;
+    disable_copy_assignment(const disable_copy_assignment&) = default;
+    disable_copy_assignment(disable_copy_assignment&&) = default;
+    disable_copy_assignment& operator=(const disable_copy_assignment&) = delete;
+    disable_copy_assignment& operator=(disable_copy_assignment&&) = default;
+};
+
+template <class T>
+struct disable_copy_assignment<T, true>
+{
+};
+
+template <class T, bool = std::is_move_constructible_v<T>>
+struct disable_move_constructor
+{
+    disable_move_constructor() = default;
+    disable_move_constructor(const disable_move_constructor&) = default;
+    disable_move_constructor(disable_move_constructor&&) = delete;
+    disable_move_constructor& operator=(const disable_move_constructor&) = default;
+    disable_move_constructor& operator=(disable_move_constructor&&) = default;
+};
+
+template <class T>
+struct disable_move_constructor<T, true>
+{
+};
+
+template <class T, bool = std::is_move_assignable_v<T>>
+struct disable_move_assignment
+{
+    disable_move_assignment() = default;
+    disable_move_assignment(const disable_move_assignment&) = default;
+    disable_move_assignment(disable_move_assignment&&) = default;
+    disable_move_assignment& operator=(const disable_move_assignment&) = default;
+    disable_move_assignment& operator=(disable_move_assignment&&) = delete;
+};
+
+template <class T>
+struct disable_move_assignment<T, true>
+{
+};
+
+template <class Key, class T, class Pair>
+struct node : disable_copy_constructor<Pair>, disable_copy_assignment<Pair>, disable_move_constructor<Pair>, disable_move_assignment<Pair> 
 {
     template <class... Args>
     node(node_index_t<Key, T> next, Args&&... args)

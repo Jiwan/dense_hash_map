@@ -27,16 +27,16 @@ namespace details
         std::vector<node<Key, T>>& vec)
         -> dense_hash_map_iterator<Key, T, isConst, projectToConstKey>
     {
-        return dense_hash_map_iterator<Key, T, isConst, projectToConstKey>{std::next(vec.begin(), bucket_it.current_node_index())};
-    }
+        if (bucket_it.current_node_index() == details::node_end_index<Key, T>)
+        {
+            
+            return dense_hash_map_iterator<Key, T, isConst, projectToConstKey>{vec.end()};
+        }
+        else
+        {
+            return dense_hash_map_iterator<Key, T, isConst, projectToConstKey>{std::next(vec.begin(), bucket_it.current_node_index())};
+        }
 
-    template <class Key, class T, bool isConst, bool projectToConstKey>
-    [[nodiscard]] constexpr auto const_iterator_to_iterator(
-        const dense_hash_map_iterator<Key, T, true, true>& const_it, std::vector<node<Key, T>>& vec)
-        -> dense_hash_map_iterator<Key, T, false, true>
-    {
-        const auto distance = std::distance(vec.cbegin(), const_it);
-        return dense_hash_map_iterator<Key, T, isConst, projectToConstKey>{std::next(vec.begin(), distance)};
     }
 
     template <class Alloc, class T>
@@ -251,19 +251,25 @@ public:
     template <class M>
     constexpr iterator insert_or_assign(const_iterator /*hint*/, const key_type& k, M&& obj)
     {
-        return insert_or_assign(k, std::forward<M>(obj));
+        return insert_or_assign(k, std::forward<M>(obj)).first;
     }
 
     template <class M>
     constexpr iterator insert_or_assign(const_iterator /*hint*/, key_type&& k, M&& obj)
     {
-        return insert_or_assign(std::move(k), std::forward<M>(obj));
+        return insert_or_assign(std::move(k), std::forward<M>(obj)).first;
     }
 
     template <class... Args>
     auto emplace(Args&&... args) -> std::pair<iterator, bool>
     {
         return dispatch_emplace(std::forward<Args>(args)...);
+    }
+
+    template <class... Args>
+    auto emplace_hint(const_iterator /*hint*/, Args&&... args) -> iterator
+    {
+        return emplace(std::forward<Args>(args)...).first;
     }
 
     template <class... Args>
@@ -371,13 +377,26 @@ public:
 
     auto erase(const_iterator pos) -> iterator
     {
-        auto it = details::const_iterator_to_iterator(pos);
-        auto position = std::distance(nodes_.begin(), it);
-        auto previous_next = find_previous_next_using_position(it->first, position);
-        do_erase(previous_next, it);
+        auto position = std::distance(cbegin(), pos);
+        auto it = std::next(begin(), position);
+        auto previous_next = find_previous_next_using_position(pos->first, position);
+        return do_erase(previous_next, it.sub_iterator()).first;
     }
 
-    auto erase(const_iterator first, const_iterator last) -> iterator;
+    auto erase(const_iterator first, const_iterator last) -> iterator
+    {
+        bool stop = first == last;
+        while (!stop)
+        {
+            --last;
+            stop = first == last;  // if first == last, erase would invalidate both!
+            last = erase(last);
+        }
+
+        auto position = std::distance(cbegin(), last);
+        return std::next(begin(), position);
+    }
+
     auto erase(const key_type& key) -> size_type
     {
         // We have to find out the node we look for and the pointer to it.
@@ -385,24 +404,24 @@ public:
 
         std::size_t* previous_next = &buckets_[bucket_index];
 
-        auto bucket_it = begin(buckets_[bucket_index]);
-        auto bucket_end = end(0u);
-
-        while (key_equal(bucket_it->const_.first, key) && bucket_it != bucket_end)
+        for(;;)
         {
-            previous_next = &bucket_it->next;
-            ++bucket_it;
+            if (*previous_next == node_end_index)
+            {
+                return 0;
+            }
+            
+            auto& node = nodes_[*previous_next];
+            
+            if (key_equal_(node.pair.non_const_.first, key))
+            {
+                break;
+            }
+
+            previous_next = &node.next;
         }
 
-        // The key was never in the map to start with.
-        if (bucket_it == bucket_end)
-        {
-            return 0;
-        }
-
-        auto it = bucket_iterator_to_iterator(bucket_it);
-
-        do_erase(previous_next, it);
+        do_erase(previous_next, std::next(nodes_.begin(), *previous_next));
 
         return 1;
     }
@@ -421,37 +440,38 @@ private:
         return it;
     }
 
-    auto do_erase(std::size_t* previous_next, iterator it) -> std::pair<iterator, bool>
+    auto do_erase(std::size_t* previous_next, typename entries_container_type::iterator sub_it) -> std::pair<iterator, bool>
     {
-        // Skip the node by pointing the previous "next" to the one it currently point to.
-        *previous_next = it->next;
+        // Skip the node by pointing the previous "next" to the one sub_it currently point to.
+        *previous_next = sub_it->next;
 
-        auto last = std::prev(end());
+        auto last = std::prev(nodes_.end());
 
         // No need to do anything if the node was at the end of the vector.
-        if (it == last)
+        if (sub_it == last)
         {
             nodes_.pop_back();
             return {end(), true};
         }
 
-        // Swap last node and the one we want to delete, and pop the last one.
+        // Swap last node and the one we want to delete.
         using std::swap;
-        swap(*it, *last);
+        swap(*sub_it, *last);
+
+        // Now sub_it points to the one we swapped with. We have to readjust sub_it.
+        previous_next = find_previous_next_using_position(sub_it->pair.non_const_.first, nodes_.size() - 1);
+        *previous_next = std::distance(nodes_.begin(), sub_it);
+
+        // Delete the last node forever and ever.
         nodes_.pop_back();
 
-        // Now it points to the one we swapped with. We have to readjust it.
-        previous_next = find_previous_next_using_position(it->first, nodes_.size());
-
-        *previous_next = std::distance(begin(), it);
-
-        return {it, true};
+        return {iterator{sub_it}, true};
     }
 
     auto find_previous_next_using_position(const key_type& key, std::size_t position)
         -> std::size_t*
     {
-        std::size_t* bucket_index = bucket(key);
+        std::size_t bucket_index = bucket(key);
 
         auto previous_next = &buckets_[bucket_index];
         while (*previous_next != position)
