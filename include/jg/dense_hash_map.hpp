@@ -342,7 +342,7 @@ public:
         return compute_index(hash_(key), buckets_.size());
     }
 
-    auto load_factor() const -> float { return size() / bucket_count(); }
+    auto load_factor() const -> float { return size() / static_cast<float>(bucket_count()); }
 
     auto max_load_factor() const -> float { return max_load_factor_; }
 
@@ -486,7 +486,7 @@ private:
     {
         auto bucket_index = bucket(entry.pair.const_.first);
         auto old_index = std::exchange(buckets_[bucket_index], index);
-        buckets_[bucket_index] = old_index;
+        entry.next = old_index;
     }
 
     void check_for_rehash()

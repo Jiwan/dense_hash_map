@@ -807,16 +807,57 @@ TEST_CASE("range erase")
     }
 }
 
-TEST_CASE("Insertions trigger a rehash")
+TEST_CASE("rehash")
 {
+    jg::dense_hash_map<std::string, int> m;
 
+    SECTION("by insertion")
+    {
+        const int amount = 1000;
+        const auto old_bucket_count = m.bucket_count();
+
+        for (int i = 0; i < amount; ++i) {
+            m.emplace("test" + std::to_string(i), i);
+        }
+
+        REQUIRE(m.size() == amount);
+        REQUIRE(m.bucket_count() != old_bucket_count);
+
+        for (int i = 0; i < amount; ++i) {
+            const std::string key = "test" + std::to_string(i);
+            auto it = m.find(key);
+            REQUIRE(it != m.end());
+            REQUIRE(it->first == key);
+            REQUIRE(it->second == i);
+        }
+    }
+
+    SECTION("rehash member function")
+    {
+        m.try_emplace("tarzan", 42);
+        m.try_emplace("spirou", 1337);
+
+        const auto old_load_factor = m.load_factor();
+
+        m.rehash(1000);
+
+        REQUIRE(m.load_factor() < old_load_factor); 
+        REQUIRE(m.bucket_count() == 1000); 
+
+        auto it = m.find("tarzan");
+        REQUIRE(it != m.end());
+        REQUIRE(it->first == "tarzan");
+        REQUIRE(it->second == 42);
+
+        it = m.find("spirou");
+        REQUIRE(it != m.end());
+        REQUIRE(it->first == "spirou");
+        REQUIRE(it->second == 1337);
+    }
 }
+
 
 TEST_CASE("Move only types")
 {
 }
 
-TEST_CASE("rehash")
-{
-
-}
