@@ -57,6 +57,39 @@ struct collision_hasher {
     }
 };
 
+template <class T, class propagateSwap = std::false_type>
+struct named_allocator
+{
+    using value_type = T;
+    using propagate_on_container_swap = propagateSwap;
+
+    named_allocator() = default;
+
+    named_allocator(std::string name) : name(std::move(name)) {}
+
+    template <class U, class propagateSwap2>
+    constexpr named_allocator (const named_allocator<U, propagateSwap2>& other) noexcept 
+        : name(other.name)
+    {}
+
+    T* allocate(std::size_t n)
+    {
+        return std::allocator<T>{}.allocate(n);
+    }
+
+    void deallocate(T* p, std::size_t s) noexcept
+    { 
+        std::allocator<T>{}.deallocate(p, s);
+    }
+
+    std::string name;
+};
+
+template <class T, class U, class propagateSwap>
+bool operator==(const named_allocator<T, propagateSwap>& lhs, const named_allocator<U, propagateSwap>& rhs) { return lhs.name == rhs.name; }
+template <class T, class U, class propagateSwap>
+bool operator!=(const named_allocator<T, propagateSwap>& lhs, const named_allocator<U, propagateSwap>& rhs) { return lhs.name != rhs.name; }
+
 }
 
 namespace std {
@@ -822,6 +855,7 @@ TEST_CASE("rehash")
 
         REQUIRE(m.size() == amount);
         REQUIRE(m.bucket_count() != old_bucket_count);
+        REQUIRE(m.bucket_count() >= std::ceil(1000 / m.max_load_factor())); 
 
         for (int i = 0; i < amount; ++i) {
             const std::string key = "test" + std::to_string(i);
@@ -842,7 +876,54 @@ TEST_CASE("rehash")
         m.rehash(1000);
 
         REQUIRE(m.load_factor() < old_load_factor); 
-        REQUIRE(m.bucket_count() == 1000); 
+        REQUIRE(m.bucket_count() == 1024); 
+
+        auto it = m.find("tarzan");
+        REQUIRE(it != m.end());
+        REQUIRE(it->first == "tarzan");
+        REQUIRE(it->second == 42);
+
+        it = m.find("spirou");
+        REQUIRE(it != m.end());
+        REQUIRE(it->first == "spirou");
+        REQUIRE(it->second == 1337);
+    }
+
+    SECTION("reserve")
+    {
+        m.try_emplace("tarzan", 42);
+        m.try_emplace("spirou", 1337);
+
+        const auto old_load_factor = m.load_factor();
+
+        m.reserve(1000);
+
+        REQUIRE(m.load_factor() < old_load_factor); 
+        REQUIRE(m.bucket_count() >= std::ceil(1000 / m.max_load_factor())); 
+
+        auto it = m.find("tarzan");
+        REQUIRE(it != m.end());
+        REQUIRE(it->first == "tarzan");
+        REQUIRE(it->second == 42);
+
+        it = m.find("spirou");
+        REQUIRE(it != m.end());
+        REQUIRE(it->first == "spirou");
+        REQUIRE(it->second == 1337);
+    }
+
+    SECTION("max_load_factor")
+    {   
+        m.try_emplace("tarzan", 42);
+        m.try_emplace("spirou", 1337);
+
+        REQUIRE(m.bucket_count() == 8);
+        REQUIRE(m.load_factor() == 0.25); // We have 2/8 == 0.25 load factor.
+
+        m.max_load_factor(0.2f); // So this should trigger a regrowth. 
+
+        REQUIRE(m.max_load_factor() == 0.2f);
+        REQUIRE(m.bucket_count() == 16); // Doubling the size will work.
 
         auto it = m.find("tarzan");
         REQUIRE(it != m.end());
@@ -856,8 +937,89 @@ TEST_CASE("rehash")
     }
 }
 
+TEST_CASE("swap", "[swap]")
+{
+    jg::dense_hash_map<std::string, int> m1 = {{"batman", 42}, {"robin", 666}};
+    jg::dense_hash_map<std::string, int> m2 = {{"superman", 64}};
+
+    SECTION("member")
+    {
+        m1.swap(m2);
+
+        REQUIRE(m1.size() == 1);
+        REQUIRE(m2.size() == 2);
+
+        auto it = m1.find("superman");
+        REQUIRE(it != m1.end());
+        REQUIRE(it->first == "superman");
+        REQUIRE(it->second == 64);
+        it = m1.find("batman");
+        REQUIRE(it == m1.end());
+
+        it = m2.find("robin");
+        REQUIRE(it != m2.end());
+        REQUIRE(it->first == "robin");
+        REQUIRE(it->second == 666);
+    }
+
+    SECTION("std::swap")
+    {
+        std::swap(m1, m2);
+
+        REQUIRE(m1.size() == 1);
+        REQUIRE(m2.size() == 2);
+
+        auto it = m1.find("superman");
+        REQUIRE(it != m1.end());
+        REQUIRE(it->first == "superman");
+        REQUIRE(it->second == 64);
+        it = m1.find("batman");
+        REQUIRE(it == m1.end());
+
+        it = m2.find("robin");
+        REQUIRE(it != m2.end());
+        REQUIRE(it->first == "robin");
+        REQUIRE(it->second == 666);
+    }
+}
+
+TEST_CASE("swap allocator", "[swap]")
+{
+    SECTION ("no swap")
+    {
+        using alloc = named_allocator<int>;
+        jg::dense_hash_map<int, int, std::hash<int>, std::equal_to<int>, alloc> m1{alloc{"a1"}};
+        jg::dense_hash_map<int, int, std::hash<int>, std::equal_to<int>, alloc> m2{alloc{"a2"}};
+        
+        REQUIRE(m1.get_allocator().name == "a1");
+        REQUIRE(m2.get_allocator().name == "a2");
+
+        std::swap(m1, m2);
+
+        REQUIRE(m1.get_allocator().name == "a1");
+        REQUIRE(m2.get_allocator().name == "a2");
+    }
+
+    SECTION ("swap")
+    {
+        using alloc = named_allocator<int, std::true_type>;
+        jg::dense_hash_map<int, int, std::hash<int>, std::equal_to<int>, alloc> m1{alloc{"a1"}};
+        jg::dense_hash_map<int, int, std::hash<int>, std::equal_to<int>, alloc> m2{alloc{"a2"}};
+
+        REQUIRE(m1.get_allocator().name == "a1");
+        REQUIRE(m2.get_allocator().name == "a2");
+
+        std::swap(m1, m2);
+
+        REQUIRE(m1.get_allocator().name == "a2");
+        REQUIRE(m2.get_allocator().name == "a1");
+    }
+}
 
 TEST_CASE("Move only types")
 {
 }
 
+TEST_CASE("growth policy")
+{
+}

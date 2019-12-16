@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cmath>
 #include <functional>
 #include <iterator>
 #include <memory>
@@ -51,8 +52,9 @@ class dense_hash_map : private GrowthPolicy
 {
 private:
     using node_type = details::node<Key, T>;
-    using entries_container_type =
-        std::vector<node_type, details::rebind_alloc<Allocator, node_type>>;
+    using entries_container_type = std::vector<node_type, details::rebind_alloc<Allocator, node_type>>;
+    using entries_size_type = typename entries_container_type::size_type;
+    using buckets_container_type = std::vector<entries_size_type, details::rebind_alloc<Allocator, entries_size_type>>;
     using node_index_type = details::node_index_t<Key, T>;
     using GrowthPolicy::compute_closest_capacity;
     using GrowthPolicy::compute_index;
@@ -64,7 +66,7 @@ public:
     using key_type = Key;
     using mapped_type = T;
     using value_type = std::pair<const Key, T>;
-    using size_type = typename entries_container_type::size_type;
+    using size_type = entries_size_type;
     using difference_type = typename entries_container_type::difference_type;
     using hasher = Hash;
     using key_equal = KeyEqual; // TODO: do the proper thing from cppref.
@@ -83,7 +85,7 @@ public:
     constexpr explicit dense_hash_map(
         size_type bucket_count, const Hash& hash = Hash(), const key_equal& equal = key_equal(),
         const allocator_type& alloc = allocator_type())
-        : buckets_(alloc), nodes_(alloc), hash_(hash), key_equal_(equal), alloc_(alloc)
+        : hash_(hash), key_equal_(equal), buckets_(alloc), nodes_(alloc) 
     {
         rehash(bucket_count);
     }
@@ -132,21 +134,19 @@ public:
 
     constexpr dense_hash_map(
         const dense_hash_map& other, const allocator_type& alloc) /* TODO: noexcept */
-        : buckets_(other.buckets_, alloc)
-        , nodes_(other.nodes_, alloc)
-        , hash_(other.hash_, alloc)
+        : hash_(other.hash_, alloc)
         , key_equal_(other.key_equal_, alloc)
-        , alloc_(alloc)
+        , buckets_(other.buckets_, alloc)
+        , nodes_(other.nodes_, alloc)
     {}
 
     constexpr dense_hash_map(dense_hash_map&& other) = default; /* TODO: noexcept */
     constexpr dense_hash_map(
         dense_hash_map&& other, const allocator_type& alloc) /* TODO: noexcept */
-        : buckets_(std::move(other.buckets_), alloc)
-        , nodes_(std::move(other.nodes_), alloc)
-        , hash_(std::move(other.hash_), alloc)
+        : hash_(std::move(other.hash_), alloc)
         , key_equal_(std::move(other.key_equal_), alloc)
-        , alloc_(alloc)
+        , buckets_(std::move(other.buckets_), alloc)
+        , nodes_(std::move(other.nodes_), alloc)
     {}
 
     constexpr dense_hash_map(
@@ -169,7 +169,7 @@ public:
 
     ~dense_hash_map() = default;
 
-    constexpr auto get_allocator() const -> allocator_type { return alloc_; }
+    constexpr auto get_allocator() const -> allocator_type { return buckets_.get_allocator(); }
 
     void clear() noexcept
     {
@@ -350,12 +350,15 @@ public:
     { 
         assert(ml > 0.0f);    
         max_load_factor_ = ml; 
+        rehash(8);
     }
 
     void rehash(size_type count)
     {
         count = std::max(minimum_capacity(), count);
         count = std::max(count, static_cast<size_type>(size() / max_load_factor()));
+        
+        count = compute_closest_capacity(count);
 
         if (count == buckets_.size()) {
             return;
@@ -373,6 +376,11 @@ public:
             reinsert_entry(entry, index);
             index++;
         }
+    }
+
+    constexpr void reserve(std::size_t count)
+    {
+        rehash(std::ceil(count / max_load_factor()));    
     }
 
     auto erase(const_iterator pos) -> iterator
@@ -424,6 +432,23 @@ public:
         do_erase(previous_next, std::next(nodes_.begin(), *previous_next));
 
         return 1;
+    }
+
+    void swap(dense_hash_map& other)
+        noexcept(
+            std::is_nothrow_swappable_v<buckets_container_type> &&
+            std::is_nothrow_swappable_v<entries_container_type> &&
+            std::allocator_traits<Allocator>::is_always_equal::value && 
+            std::is_nothrow_swappable_v<Hash> && 
+            std::is_nothrow_swappable_v<key_equal>
+        )
+    {
+        using std::swap;
+        swap(buckets_, other.buckets_);
+        swap(nodes_, other.nodes_);
+        swap(max_load_factor_, other.max_load_factor_);
+        swap(hash_, other.hash_);
+        swap(key_equal_, other.key_equal_);
     }
 
     auto find(const Key& key) -> iterator { return details::bucket_iterator_to_iterator(find_in_bucket(key, bucket(key)), nodes_); }
@@ -558,17 +583,30 @@ private:
 
         return std::pair{std::prev(end()), true};
     }
-
-    std::vector<size_type, details::rebind_alloc<Allocator, size_type>> buckets_;
-    entries_container_type nodes_;
-    float max_load_factor_ = details::default_max_load_factor;
-
+    
     // TODO: EBO
     hasher hash_;
     key_equal key_equal_;
-    allocator_type alloc_;
+
+    buckets_container_type buckets_;
+    entries_container_type nodes_;
+    float max_load_factor_ = details::default_max_load_factor;
 };
 
 } // namespace jg
+
+namespace std
+{
+    template <class Key, class T, class Hash, class KeyEqual, class Allocator, class GrowthPolicy>
+    void swap(
+        jg::dense_hash_map<Key, T, Hash, KeyEqual, Allocator, GrowthPolicy>& lhs, 
+        jg::dense_hash_map<Key, T, Hash, KeyEqual, Allocator, GrowthPolicy>& rhs
+    ) 
+        noexcept(noexcept(lhs.swap(rhs)))
+    {
+        lhs.swap(rhs);
+    }
+
+} // namespace std
 
 #endif // JG_DENSE_HASH_MAP_HPP
