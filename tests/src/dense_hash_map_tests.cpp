@@ -7,13 +7,11 @@
 #include <string>
 #include <vector>
 
-namespace {
+namespace
+{
 struct increase_counter_on_copy_or_move
 {
-    increase_counter_on_copy_or_move(std::size_t* counter_ptr)
-        : counter_ptr{counter_ptr}
-    {
-    }
+    increase_counter_on_copy_or_move(std::size_t* counter_ptr) : counter_ptr{counter_ptr} {}
 
     increase_counter_on_copy_or_move(const increase_counter_on_copy_or_move& other)
         : counter_ptr(other.counter_ptr)
@@ -27,13 +25,14 @@ struct increase_counter_on_copy_or_move
         ++(*counter_ptr);
     }
 
-    auto operator=(const increase_counter_on_copy_or_move& other) -> increase_counter_on_copy_or_move&
+    auto operator=(const increase_counter_on_copy_or_move& other)
+        -> increase_counter_on_copy_or_move&
     {
         counter_ptr = other.counter_ptr;
         ++(*counter_ptr);
         return *this;
     }
-    
+
     auto operator=(increase_counter_on_copy_or_move&& other) -> increase_counter_on_copy_or_move&
     {
         counter_ptr = std::move(other.counter_ptr);
@@ -44,12 +43,14 @@ struct increase_counter_on_copy_or_move
     std::size_t* counter_ptr = nullptr;
 };
 
-auto operator==(const increase_counter_on_copy_or_move&, const increase_counter_on_copy_or_move&) -> bool
+auto operator==(const increase_counter_on_copy_or_move&, const increase_counter_on_copy_or_move&)
+    -> bool
 {
     return true;
 }
 
-struct collision_hasher {
+struct collision_hasher
+{
     template <class T>
     auto operator()(T&&) const noexcept -> std::size_t
     {
@@ -68,44 +69,50 @@ struct named_allocator
     named_allocator(std::string name) : name(std::move(name)) {}
 
     template <class U, class propagateSwap2>
-    constexpr named_allocator (const named_allocator<U, propagateSwap2>& other) noexcept 
+    constexpr named_allocator(const named_allocator<U, propagateSwap2>& other) noexcept
         : name(other.name)
     {}
 
-    T* allocate(std::size_t n)
-    {
-        return std::allocator<T>{}.allocate(n);
-    }
+    auto allocate(std::size_t n) -> T* { return std::allocator<T>{}.allocate(n); }
 
-    void deallocate(T* p, std::size_t s) noexcept
-    { 
-        std::allocator<T>{}.deallocate(p, s);
-    }
+    void deallocate(T* p, std::size_t s) noexcept { std::allocator<T>{}.deallocate(p, s); }
 
     std::string name;
 };
 
 template <class T, class U, class propagateSwap>
-bool operator==(const named_allocator<T, propagateSwap>& lhs, const named_allocator<U, propagateSwap>& rhs) { return lhs.name == rhs.name; }
+auto operator==(
+    const named_allocator<T, propagateSwap>& lhs, const named_allocator<U, propagateSwap>& rhs)
+    -> bool
+{
+    return lhs.name == rhs.name;
+}
 template <class T, class U, class propagateSwap>
-bool operator!=(const named_allocator<T, propagateSwap>& lhs, const named_allocator<U, propagateSwap>& rhs) { return lhs.name != rhs.name; }
-
+auto operator!=(
+    const named_allocator<T, propagateSwap>& lhs, const named_allocator<U, propagateSwap>& rhs)
+    -> bool
+{
+    return lhs.name != rhs.name;
 }
 
-namespace std {
-    template<>
-    struct hash<increase_counter_on_copy_or_move> {
-        auto operator()(const increase_counter_on_copy_or_move& ) const noexcept -> std::size_t
-        {
-            return 0;
-        }
-    };
-}
+} // namespace
+
+namespace std
+{
+template <>
+struct hash<increase_counter_on_copy_or_move>
+{
+    auto operator()(const increase_counter_on_copy_or_move&) const noexcept -> std::size_t
+    {
+        return 0;
+    }
+};
+} // namespace std
 
 TEST_CASE("clear")
 {
     jg::dense_hash_map<std::string, int> m;
-    
+
     SECTION("empty")
     {
         m.clear();
@@ -128,17 +135,15 @@ TEST_CASE("clear")
         REQUIRE(m.load_factor() == 0.0f);
     }
 
-    SECTION("no_except")
-    {
-        REQUIRE(noexcept(m.clear()));
-    }
+    SECTION("no_except") { REQUIRE(noexcept(m.clear())); }
 }
 
 template <class T, class V>
 using has_insert = decltype(std::declval<T>().insert(std::declval<V>()));
 
 template <class T, class V>
-using has_insert_hint = decltype(std::declval<T>().insert(std::declval<T>().begin(), std::declval<V>()));
+using has_insert_hint =
+    decltype(std::declval<T>().insert(std::declval<T>().begin(), std::declval<V>()));
 
 TEST_CASE("insert")
 {
@@ -185,7 +190,9 @@ TEST_CASE("insert")
 
     SECTION("insert - conversion is SFINAE friendly")
     {
-        REQUIRE_FALSE(jg::details::is_detected<has_insert, jg::dense_hash_map<std::vector<int>, int>, std::pair<bool, std::string>>::value);
+        REQUIRE_FALSE(jg::details::is_detected<
+                      has_insert, jg::dense_hash_map<std::vector<int>, int>,
+                      std::pair<bool, std::string>>::value);
     }
 
     SECTION("insert - lvalue - hint")
@@ -229,7 +236,9 @@ TEST_CASE("insert")
 
     SECTION("insert - conversion is SFINAE friendly - hint")
     {
-        REQUIRE_FALSE(jg::details::is_detected<has_insert_hint, jg::dense_hash_map<std::vector<int>, int>, std::pair<bool, std::string>>::value);
+        REQUIRE_FALSE(jg::details::is_detected<
+                      has_insert_hint, jg::dense_hash_map<std::vector<int>, int>,
+                      std::pair<bool, std::string>>::value);
     }
 
     SECTION("insert - iterator")
@@ -269,7 +278,6 @@ TEST_CASE("insert_or_assign")
 {
     jg::dense_hash_map<std::string, int> m1;
     jg::dense_hash_map<std::unique_ptr<int>, int> m2;
-    
 
     SECTION("l-value key")
     {
@@ -340,8 +348,8 @@ TEST_CASE("emplace", "[emplace]")
     }
 
     SECTION("once - rvalues")
-    { 
-        const auto& [it, result] = m.emplace("test", 42); 
+    {
+        const auto& [it, result] = m.emplace("test", 42);
 
         REQUIRE(result);
         REQUIRE(it->first == "test");
@@ -350,10 +358,10 @@ TEST_CASE("emplace", "[emplace]")
     }
 
     SECTION("once - l-values")
-    { 
-        std::string key = "test"; 
-        int value = 42; 
-        const auto& [it, result] = m.emplace(key, value); 
+    {
+        std::string key = "test";
+        int value = 42;
+        const auto& [it, result] = m.emplace(key, value);
 
         REQUIRE(result);
         REQUIRE(it->first == "test");
@@ -362,10 +370,10 @@ TEST_CASE("emplace", "[emplace]")
     }
 
     SECTION("once - const l-values")
-    { 
-        const std::string key = "test"; 
-        const int value = 42; 
-        const auto& [it, result] = m.emplace(key, value); 
+    {
+        const std::string key = "test";
+        const int value = 42;
+        const auto& [it, result] = m.emplace(key, value);
 
         REQUIRE(result);
         REQUIRE(it->first == "test");
@@ -413,7 +421,8 @@ TEST_CASE("emplace", "[emplace]")
 
     SECTION("conversion pair")
     {
-        const auto& [it, result] = m.emplace(std::pair("test", 42)); // key: const char* ==> std::string
+        const auto& [it, result] =
+            m.emplace(std::pair("test", 42)); // key: const char* ==> std::string
         REQUIRE(result);
         REQUIRE(it->first == "test");
         REQUIRE(it->second == 42);
@@ -422,7 +431,8 @@ TEST_CASE("emplace", "[emplace]")
 
     SECTION("piecewise_construct")
     {
-        const auto& [it, result] = m.emplace(std::piecewise_construct, std::forward_as_tuple("test"), std::forward_as_tuple(42));
+        const auto& [it, result] = m.emplace(
+            std::piecewise_construct, std::forward_as_tuple("test"), std::forward_as_tuple(42));
         REQUIRE(result);
         REQUIRE(it->first == "test");
         REQUIRE(it->second == 42);
@@ -432,7 +442,7 @@ TEST_CASE("emplace", "[emplace]")
 
 TEST_CASE("emplace key rvalue")
 {
-    jg::dense_hash_map<std::unique_ptr<int>, int> m; 
+    jg::dense_hash_map<std::unique_ptr<int>, int> m;
 
     SECTION("Successfull emplace")
     {
@@ -450,13 +460,13 @@ TEST_CASE("emplace twice", "[emplace]")
     jg::dense_hash_map<std::string, int> m;
 
     SECTION("twice same")
-    { 
-        const auto& [it, result] = m.emplace("test", 42); 
+    {
+        const auto& [it, result] = m.emplace("test", 42);
         REQUIRE(result);
         REQUIRE(it->first == "test");
         REQUIRE(it->second == 42);
 
-        const auto& [it2, result2] = m.emplace("test", 42); 
+        const auto& [it2, result2] = m.emplace("test", 42);
         REQUIRE_FALSE(result2);
         REQUIRE(it == it2);
         REQUIRE(it2->first == "test");
@@ -465,13 +475,13 @@ TEST_CASE("emplace twice", "[emplace]")
     }
 
     SECTION("twice different")
-    { 
-        const auto& [it, result] = m.emplace("test", 42); 
+    {
+        const auto& [it, result] = m.emplace("test", 42);
         REQUIRE(result);
         REQUIRE(it->first == "test");
         REQUIRE(it->second == 42);
 
-        const auto& [it2, result2] = m.emplace("test2", 1337); 
+        const auto& [it2, result2] = m.emplace("test2", 1337);
         REQUIRE(result2);
         REQUIRE(it != it2);
         REQUIRE(it2->first == "test2");
@@ -494,7 +504,7 @@ TEST_CASE("emplace optimization", "[emplace]")
 
     SECTION("key not copied if not inserted")
     {
-        increase_counter_on_copy_or_move key {&counter};
+        increase_counter_on_copy_or_move key{&counter};
         m.emplace(key, 42);
 
         REQUIRE(counter_after_insertion == counter);
@@ -502,7 +512,7 @@ TEST_CASE("emplace optimization", "[emplace]")
 
     SECTION("pair's key copied moved if not inserted")
     {
-        increase_counter_on_copy_or_move key {&counter};
+        increase_counter_on_copy_or_move key{&counter};
         std::pair<increase_counter_on_copy_or_move&, int> p(key, 42);
         m.emplace(p);
 
@@ -511,7 +521,7 @@ TEST_CASE("emplace optimization", "[emplace]")
 
     SECTION("key not moved if not inserted")
     {
-        increase_counter_on_copy_or_move key {&counter};
+        increase_counter_on_copy_or_move key{&counter};
         m.emplace(std::move(key), 42);
 
         REQUIRE(counter_after_insertion == counter);
@@ -555,8 +565,8 @@ TEST_CASE("try emplace", "[try_emplace]")
     jg::dense_hash_map<std::string, int> m;
 
     SECTION("rvalues")
-    { 
-        const auto& [it, result] = m.try_emplace("test", 42); 
+    {
+        const auto& [it, result] = m.try_emplace("test", 42);
 
         REQUIRE(result);
         REQUIRE(it->first == "test");
@@ -565,10 +575,10 @@ TEST_CASE("try emplace", "[try_emplace]")
     }
 
     SECTION("l-values")
-    { 
-        std::string key = "test"; 
-        int value = 42; 
-        const auto& [it, result] = m.try_emplace(key, value); 
+    {
+        std::string key = "test";
+        int value = 42;
+        const auto& [it, result] = m.try_emplace(key, value);
 
         REQUIRE(result);
         REQUIRE(it->first == "test");
@@ -577,10 +587,10 @@ TEST_CASE("try emplace", "[try_emplace]")
     }
 
     SECTION("const l-values")
-    { 
-        const std::string key = "test"; 
-        const int value = 42; 
-        const auto& [it, result] = m.try_emplace(key, value); 
+    {
+        const std::string key = "test";
+        const int value = 42;
+        const auto& [it, result] = m.try_emplace(key, value);
 
         REQUIRE(result);
         REQUIRE(it->first == "test");
@@ -594,13 +604,13 @@ TEST_CASE("try_emplace twice", "[try_emplace]")
     jg::dense_hash_map<std::string, int> m;
 
     SECTION("twice same")
-    { 
-        const auto& [it, result] = m.try_emplace("test", 42); 
+    {
+        const auto& [it, result] = m.try_emplace("test", 42);
         REQUIRE(result);
         REQUIRE(it->first == "test");
         REQUIRE(it->second == 42);
 
-        const auto& [it2, result2] = m.try_emplace("test", 42); 
+        const auto& [it2, result2] = m.try_emplace("test", 42);
         REQUIRE_FALSE(result2);
         REQUIRE(it == it2);
         REQUIRE(it2->first == "test");
@@ -609,13 +619,13 @@ TEST_CASE("try_emplace twice", "[try_emplace]")
     }
 
     SECTION("twice different")
-    { 
-        const auto& [it, result] = m.try_emplace("test", 42); 
+    {
+        const auto& [it, result] = m.try_emplace("test", 42);
         REQUIRE(result);
         REQUIRE(it->first == "test");
         REQUIRE(it->second == 42);
 
-        const auto& [it2, result2] = m.try_emplace("test2", 1337); 
+        const auto& [it2, result2] = m.try_emplace("test2", 1337);
         REQUIRE(result2);
         REQUIRE(it != it2);
         REQUIRE(it2->first == "test2");
@@ -638,7 +648,7 @@ TEST_CASE("try_emplace effects guarantees", "[try_emplace]")
 
     SECTION("key not copied if not inserted")
     {
-        increase_counter_on_copy_or_move key {&counter};
+        increase_counter_on_copy_or_move key{&counter};
         m.try_emplace(key, 42);
 
         REQUIRE(counter_after_insertion == counter);
@@ -646,7 +656,7 @@ TEST_CASE("try_emplace effects guarantees", "[try_emplace]")
 
     SECTION("key not moved if not inserted")
     {
-        increase_counter_on_copy_or_move key {&counter};
+        increase_counter_on_copy_or_move key{&counter};
         m.try_emplace(std::move(key), 42);
 
         REQUIRE(counter_after_insertion == counter);
@@ -849,15 +859,17 @@ TEST_CASE("rehash")
         const int amount = 1000;
         const auto old_bucket_count = m.bucket_count();
 
-        for (int i = 0; i < amount; ++i) {
+        for (int i = 0; i < amount; ++i)
+        {
             m.emplace("test" + std::to_string(i), i);
         }
 
         REQUIRE(m.size() == amount);
         REQUIRE(m.bucket_count() != old_bucket_count);
-        REQUIRE(m.bucket_count() >= std::ceil(1000 / m.max_load_factor())); 
+        REQUIRE(m.bucket_count() >= std::ceil(1000 / m.max_load_factor()));
 
-        for (int i = 0; i < amount; ++i) {
+        for (int i = 0; i < amount; ++i)
+        {
             const std::string key = "test" + std::to_string(i);
             auto it = m.find(key);
             REQUIRE(it != m.end());
@@ -875,8 +887,8 @@ TEST_CASE("rehash")
 
         m.rehash(1000);
 
-        REQUIRE(m.load_factor() < old_load_factor); 
-        REQUIRE(m.bucket_count() == 1024); 
+        REQUIRE(m.load_factor() < old_load_factor);
+        REQUIRE(m.bucket_count() == 1024);
 
         auto it = m.find("tarzan");
         REQUIRE(it != m.end());
@@ -898,8 +910,8 @@ TEST_CASE("rehash")
 
         m.reserve(1000);
 
-        REQUIRE(m.load_factor() < old_load_factor); 
-        REQUIRE(m.bucket_count() >= std::ceil(1000 / m.max_load_factor())); 
+        REQUIRE(m.load_factor() < old_load_factor);
+        REQUIRE(m.bucket_count() >= std::ceil(1000 / m.max_load_factor()));
 
         auto it = m.find("tarzan");
         REQUIRE(it != m.end());
@@ -913,14 +925,14 @@ TEST_CASE("rehash")
     }
 
     SECTION("max_load_factor")
-    {   
+    {
         m.try_emplace("tarzan", 42);
         m.try_emplace("spirou", 1337);
 
         REQUIRE(m.bucket_count() == 8);
         REQUIRE(m.load_factor() == 0.25); // We have 2/8 == 0.25 load factor.
 
-        m.max_load_factor(0.2f); // So this should trigger a regrowth. 
+        m.max_load_factor(0.2f); // So this should trigger a regrowth.
 
         REQUIRE(m.max_load_factor() == 0.2f);
         REQUIRE(m.bucket_count() == 16); // Doubling the size will work.
@@ -985,12 +997,12 @@ TEST_CASE("swap", "[swap]")
 
 TEST_CASE("swap allocator", "[swap]")
 {
-    SECTION ("no swap")
+    SECTION("no swap")
     {
         using alloc = named_allocator<int>;
         jg::dense_hash_map<int, int, std::hash<int>, std::equal_to<int>, alloc> m1{alloc{"a1"}};
         jg::dense_hash_map<int, int, std::hash<int>, std::equal_to<int>, alloc> m2{alloc{"a2"}};
-        
+
         REQUIRE(m1.get_allocator().name == "a1");
         REQUIRE(m2.get_allocator().name == "a2");
 
@@ -1000,7 +1012,7 @@ TEST_CASE("swap allocator", "[swap]")
         REQUIRE(m2.get_allocator().name == "a2");
     }
 
-    SECTION ("swap")
+    SECTION("swap")
     {
         using alloc = named_allocator<int, std::true_type>;
         jg::dense_hash_map<int, int, std::hash<int>, std::equal_to<int>, alloc> m1{alloc{"a1"}};
@@ -1015,7 +1027,6 @@ TEST_CASE("swap allocator", "[swap]")
         REQUIRE(m2.get_allocator().name == "a1");
     }
 }
-
 
 TEST_CASE("at")
 {
@@ -1043,10 +1054,44 @@ TEST_CASE("at")
     }
 }
 
-TEST_CASE("Move only types")
+TEST_CASE("subscript operator")
 {
+    jg::dense_hash_map<std::string, int> m1 = {};
+
+    SECTION("copy-key")
+    {
+        std::string key = "RPC";
+        m1[key] = 4;
+        REQUIRE(m1.size() == 1);
+        auto it = m1.find("RPC");
+        REQUIRE(it != m1.end());
+        REQUIRE(it->second == 4);
+    }
+
+    SECTION("move-key")
+    {
+        std::string key = "PRC";
+        m1[std::move(key)] = 748;
+        REQUIRE(m1.size() == 1);
+        auto it = m1.find("PRC");
+        REQUIRE(it != m1.end());
+        REQUIRE(it->second == 748);
+        REQUIRE(key.empty());
+    }
+
+    SECTION("twice")
+    {
+        m1["CRP"] = 1;
+        REQUIRE(m1.size() == 1);
+        auto it = m1.find("CRP");
+        REQUIRE(it != m1.end());
+        REQUIRE(it->second == 1);
+
+        m1["CRP"] = 2;
+        REQUIRE(it->second == 2);
+    }
 }
 
-TEST_CASE("growth policy")
-{
-}
+TEST_CASE("Move only types") {}
+
+TEST_CASE("growth policy") {}
