@@ -1016,6 +1016,33 @@ TEST_CASE("swap allocator", "[swap]")
     }
 }
 
+
+TEST_CASE("at")
+{
+    jg::dense_hash_map<std::string, int> m1 = {{"batman", 42}, {"robin", 666}};
+
+    // TODO: exception free.
+    SECTION("non-const")
+    {
+        static_assert(std::is_same_v<decltype(m1.at("")), int&>);
+        REQUIRE(m1.at("batman") == 42);
+
+        m1.at("batman") = 1337;
+
+        REQUIRE(m1.at("batman") == 1337);
+
+        REQUIRE_THROWS(m1.at("winnie"));
+    }
+
+    SECTION("const")
+    {
+        const auto& m2 = m1;
+        static_assert(std::is_same_v<decltype(m2.at("")), const int&>);
+        REQUIRE(m2.at("batman") == 42);
+        REQUIRE_THROWS(m1.at("the pooh"));
+    }
+}
+
 TEST_CASE("Move only types")
 {
 }

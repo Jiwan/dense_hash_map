@@ -12,10 +12,9 @@ namespace jg::details
 template <class Key, class T, bool isConst, bool projectToConstKey>
 class bucket_iterator
 {
-    using entries_container_type = std::vector<node<Key, T>>;
+    using nodes_container_type = std::conditional_t<isConst, const std::vector<node<Key, T>>, std::vector<node<Key, T>>>;
     using node_index_type = node_index_t<Key, T>;
-    using projected_type =
-        std::pair<typename std::conditional<projectToConstKey, const Key, Key>::type, T>;
+    using projected_type = std::pair<std::conditional_t<projectToConstKey, const Key, Key>, T>;
 
 public:
     using iterator_category = std::forward_iterator_tag;
@@ -25,29 +24,29 @@ public:
     using pointer = value_type*;
 
     bucket_iterator() = default;
-    bucket_iterator(entries_container_type& entries_container)
-        : entries_container_(&entries_container)
+    bucket_iterator(nodes_container_type& nodes_container)
+        : nodes_container(&nodes_container)
     {}
 
-    bucket_iterator(node_index_type index, entries_container_type& entries_container)
-        : entries_container_(&entries_container), current_node_index_(index)
+    bucket_iterator(node_index_type index, nodes_container_type& nodes_container)
+        : nodes_container(&nodes_container), current_node_index_(index)
     {}
 
     constexpr auto operator*() const noexcept -> reference
     {
         if constexpr (projectToConstKey)
         {
-            return (*entries_container_)[current_node_index_].pair.const_;
+            return (*nodes_container)[current_node_index_].pair.const_;
         }
         else
         {
-            return (*entries_container_)[current_node_index_].pair.non_const_;
+            return (*nodes_container)[current_node_index_].pair.non_const_;
         }
     }
 
     constexpr auto operator++() noexcept -> bucket_iterator&
     {
-        current_node_index_ = (*entries_container_)[current_node_index_].next;
+        current_node_index_ = (*nodes_container)[current_node_index_].next;
         return *this;
     }
 
@@ -62,18 +61,18 @@ public:
     {
         if constexpr (projectToConstKey)
         {
-            return &(*entries_container_)[current_node_index_].pair.const_;
+            return &(*nodes_container)[current_node_index_].pair.const_;
         }
         else
         {
-            return &(*entries_container_)[current_node_index_].pair.non_const_;
+            return &(*nodes_container)[current_node_index_].pair.non_const_;
         }
     }
 
     auto current_node_index() const -> node_index_type { return current_node_index_; }
 
 private:
-    entries_container_type* entries_container_;
+    nodes_container_type* nodes_container;
     node_index_type current_node_index_ = node_end_index<Key, T>;
 };
 

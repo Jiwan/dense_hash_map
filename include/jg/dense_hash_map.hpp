@@ -22,22 +22,18 @@ namespace details
 {
     static constexpr const float default_max_load_factor = 0.875f;
 
-    template <class Key, class T, bool isConst, bool projectToConstKey>
-    [[nodiscard]] constexpr auto bucket_iterator_to_iterator(
-        const bucket_iterator<Key, T, isConst, projectToConstKey>& bucket_it,
-        std::vector<node<Key, T>>& vec)
+    template <class Key, class T, bool isConst, bool projectToConstKey, class Nodes>
+    [[nodiscard]] constexpr auto bucket_iterator_to_iterator(const bucket_iterator<Key, T, isConst, projectToConstKey>& bucket_it, Nodes& nodes)
         -> dense_hash_map_iterator<Key, T, isConst, projectToConstKey>
     {
         if (bucket_it.current_node_index() == details::node_end_index<Key, T>)
         {
-            
-            return dense_hash_map_iterator<Key, T, isConst, projectToConstKey>{vec.end()};
+            return dense_hash_map_iterator<Key, T, isConst, projectToConstKey>{nodes.end()};
         }
         else
         {
-            return dense_hash_map_iterator<Key, T, isConst, projectToConstKey>{std::next(vec.begin(), bucket_it.current_node_index())};
+            return dense_hash_map_iterator<Key, T, isConst, projectToConstKey>{std::next(nodes.begin(), bucket_it.current_node_index())};
         }
-
     }
 
     template <class Alloc, class T>
@@ -451,17 +447,60 @@ public:
         swap(key_equal_, other.key_equal_);
     }
 
-    auto find(const Key& key) -> iterator { return details::bucket_iterator_to_iterator(find_in_bucket(key, bucket(key)), nodes_); }
+    constexpr auto at(const key_type& key) -> T& {
+        auto it = find(key); 
 
-    auto find(const Key& key) const -> const_iterator { return details::bucket_iterator_to_iterator(find_in_bucket(key, bucket(key)), nodes_); }
+        // TODO: exception free.
+        if (it == end()) {
+            throw std::out_of_range("The specified key does not exists in this map.");
+        }
+
+        return it->second;
+    }
+
+    constexpr auto at(const key_type& key) const -> const T& {
+        auto it = find(key); 
+
+        // TODO: exception free.
+        if (it == end()) {
+            throw std::out_of_range("The specified key does not exists in this map.");
+        }
+
+        return it->second;
+    }
+
+    constexpr auto find(const key_type& key) -> iterator { 
+        return details::bucket_iterator_to_iterator(find_in_bucket(key, bucket(key)), nodes_); 
+    }
+
+    constexpr auto find(const key_type& key) const -> const_iterator { 
+        return details::bucket_iterator_to_iterator(find_in_bucket(key, bucket(key)), nodes_); 
+    }
+
+    constexpr auto operator[](const Key& key) -> T&
+    {
+
+    }
+    
+    constexpr auto operator[](Key&& key) -> T&
+    {
+
+    }
 
 private:
     auto find_in_bucket(const key_type& key, std::size_t bucket_index) -> local_iterator
     {
         auto b = begin(bucket_index);
         auto e = end(0u);
-        auto it =
-            std::find_if(b, e, [&key, this](auto& p) { return key_equal_(p.first, key); });
+        auto it = std::find_if(b, e, [&key, this](auto& p) { return key_equal_(p.first, key); });
+        return it;
+    }
+
+    auto find_in_bucket(const key_type& key, std::size_t bucket_index) const -> const_local_iterator
+    {
+        auto b = begin(bucket_index);
+        auto e = end(0u);
+        auto it = std::find_if(b, e, [&key, this](auto& p) { return key_equal_(p.first, key); });
         return it;
     }
 

@@ -1,3 +1,4 @@
+- Exception free.
 - Unit-tests for all functions and stuff.
 - Disable copy-constructor for pair types that do not support them.
 - Move only types...
