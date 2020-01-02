@@ -95,6 +95,51 @@ auto operator!=(
     return lhs.name != rhs.name;
 }
 
+struct nested_string 
+{
+    std::string value;
+};
+
+struct string_hash {
+  using transparent_key_equal = std::equal_to<>; 
+  using hash_type = std::hash<std::string>; 
+  size_t operator()(const std::string& s) const { return hash_type{}(s); }
+  size_t operator()(const nested_string& s) const { return hash_type{}(s.value); }
+};
+
+bool operator==(const std::string& s, const nested_string& ns)
+{
+    return s == ns.value;
+}
+
+template <typename UnnamedType>
+struct is_valid_container
+{
+private:
+    template <typename... Params> constexpr auto test_validity(int /* unused */)
+        -> decltype(std::declval<UnnamedType>()(std::declval<Params>()...), std::true_type())
+    {
+        return std::true_type();
+    }
+
+    template <typename... Params> constexpr std::false_type test_validity(...)
+    {
+        return std::false_type();
+    }
+
+public:
+    template <typename... Params> constexpr auto operator()(Params&& ...)
+    {
+        return test_validity<Params...>(int());
+    }
+};
+
+template <typename UnnamedType>
+constexpr auto is_valid(UnnamedType&&)
+{
+    return is_valid_container<UnnamedType>();
+}
+
 } // namespace
 
 namespace std
@@ -1091,6 +1136,105 @@ TEST_CASE("subscript operator")
         REQUIRE(it->second == 2);
     }
 }
+
+TEST_CASE("count simple hash", "[count]")
+{
+    jg::dense_hash_map<std::string, int> m1 = {};
+
+    SECTION("key")
+    {
+        REQUIRE(m1.count("queen") == 0);
+
+        m1.try_emplace("queen", 42);
+        REQUIRE(m1.count("queen") == 1);
+    }
+
+    SECTION("no generic count")
+    {
+        auto v = is_valid([](const auto& m) -> decltype(m.count(nested_string{"queen"})) {});
+        REQUIRE_FALSE(v(m1));
+    }
+}
+
+TEST_CASE("count transparent hash", "[count]")
+{
+    jg::dense_hash_map<std::string, int, string_hash> m1 = {};
+
+    SECTION("key")
+    {
+        REQUIRE(m1.count(nested_string{"pink floyd"}) == 0);
+
+        m1.try_emplace("pink floyd", 42);
+        REQUIRE(m1.count(nested_string{"pink floyd"}) == 1);
+    }
+}
+
+TEST_CASE("find simple hash", "[find]")
+{
+    jg::dense_hash_map<std::string, int> m1 = {};
+
+    SECTION("non-const")
+    {
+        auto it = m1.find("queen");
+        REQUIRE(it == m1.end());
+
+        m1.try_emplace("queen", 42);
+        it = m1.find("queen");
+        REQUIRE(it != m1.end());
+        REQUIRE(it->second == 42);
+        static_assert(std::is_same_v<decltype((it->second)), int&>);
+    }
+
+    SECTION("const")
+    {   
+        const auto& m2 = m1; 
+        auto it = m2.find("queen");
+        REQUIRE(it == m2.end());
+
+        m1.try_emplace("queen", 42);
+        it = m2.find("queen");
+        REQUIRE(it != m2.end());
+        REQUIRE(it->second == 42);
+        static_assert(std::is_same_v<decltype((it->second)), const int&>);
+    }
+
+    SECTION("no generic find")
+    {
+        auto v = is_valid([](const auto& m) -> decltype(m.find(nested_string{"queen"})) {});
+        REQUIRE_FALSE(v(m1));
+    }
+}
+
+TEST_CASE("find transparent hash", "[find]")
+{
+    jg::dense_hash_map<std::string, int, string_hash> m1 = {};
+
+    SECTION("non-const")
+    {
+        auto it = m1.find(nested_string{"queen"});
+        REQUIRE(it == m1.end());
+
+        m1.try_emplace("queen", 42);
+        it = m1.find(nested_string{"queen"});
+        REQUIRE(it != m1.end());
+        REQUIRE(it->second == 42);
+        static_assert(std::is_same_v<decltype((it->second)), int&>);
+    }
+
+    SECTION("const")
+    {   
+        const auto& m2 = m1; 
+        auto it = m2.find(nested_string{"queen"});
+        REQUIRE(it == m2.end());
+
+        m1.try_emplace("queen", 42);
+        it = m2.find(nested_string{"queen"});
+        REQUIRE(it != m2.end());
+        REQUIRE(it->second == 42);
+        static_assert(std::is_same_v<decltype((it->second)), const int&>);
+    }
+}
+
 
 TEST_CASE("Move only types") {}
 

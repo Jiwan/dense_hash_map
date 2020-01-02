@@ -5,6 +5,7 @@
 #include "details/dense_hash_map_iterator.hpp"
 #include "details/node.hpp"
 #include "details/power_of_two_growth_policy.hpp"
+#include "details/type_traits.hpp"
 
 #include <algorithm>
 #include <cassert>
@@ -40,10 +41,39 @@ namespace details
 
     template <class Alloc, class T>
     using rebind_alloc = typename std::allocator_traits<Alloc>::template rebind_alloc<T>;
+
+    template <class Hash>
+    using detect_transparent_key_equal = typename Hash::transparent_key_equal;
+
+    template <class Hash>
+    inline constexpr bool is_transparent_key_equal_v = is_detected<detect_transparent_key_equal, Hash>::value;
+
+    template <class Pred>
+    using detect_is_transparent = typename Pred::is_transparent;
+
+    template <class Pred>
+    inline constexpr bool is_transparent_v = is_detected<detect_is_transparent, Pred>::value;
+
+    template <class Hash, class Pred, class Key, bool = is_transparent_key_equal_v<Hash>>
+    struct key_equal
+    {
+        using type = Pred;
+    };
+
+    template <class Hash, class Pred, class Key>
+    struct key_equal<Hash, Pred, Key, true>
+    {
+        using type = typename Hash::transparent_key_equal;
+
+        static_assert(is_transparent_v<type>, "The associated transparent key equal is missing a is_transparent tag type.");
+        static_assert(
+            std::is_same_v<Pred, std::equal_to<Key>> || std::is_same_v<Pred, type>, 
+            "The associated transparent key equal must be the transparent_key_equal tag or std::equal_to<Key>");
+    };
 } // namespace details
 
 template <
-    class Key, class T, class Hash = std::hash<Key>, class KeyEqual = std::equal_to<Key>,
+    class Key, class T, class Hash = std::hash<Key>, class Pred = std::equal_to<Key>,
     class Allocator = std::allocator<std::pair<const Key, T>>,
     class GrowthPolicy = details::power_of_two_growth_policy>
 class dense_hash_map : private GrowthPolicy
@@ -69,7 +99,7 @@ public:
     using size_type = entries_size_type;
     using difference_type = typename entries_container_type::difference_type;
     using hasher = Hash;
-    using key_equal = KeyEqual; // TODO: do the proper thing from cppref.
+    using key_equal = typename details::key_equal<Hash, Pred, Key>::type;
     using allocator_type = Allocator;
     using reference = value_type&;
     using const_reference = value_type&;
@@ -342,7 +372,7 @@ public:
 
     auto bucket(const key_type& key) const -> size_type
     {
-        return compute_index(hash_(key), buckets_.size());
+        return bucket_index(key); 
     }
 
     auto load_factor() const -> float { return size() / static_cast<float>(bucket_count()); }
@@ -409,9 +439,9 @@ public:
     auto erase(const key_type& key) -> size_type
     {
         // We have to find out the node we look for and the pointer to it.
-        auto bucket_index = bucket(key);
+        auto bindex = bucket_index(key);
 
-        std::size_t* previous_next = &buckets_[bucket_index];
+        std::size_t* previous_next = &buckets_[bindex];
 
         for (;;)
         {
@@ -474,7 +504,10 @@ public:
         return it->second;
     }
 
-    constexpr auto operator[](const key_type& key) -> T& { return this->try_emplace(key).first->second; }
+    constexpr auto operator[](const key_type& key) -> T&
+    { 
+        return this->try_emplace(key).first->second; 
+    }
 
     constexpr auto operator[](key_type&& key) -> T&
     {
@@ -483,33 +516,46 @@ public:
 
     auto count(const key_type& key) const -> size_type
     {
-    
+        return find(key) == end()? 0u : 1u; 
     }
 
-    /**
-        C++20: Hash::transparent_key_equal
-        http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2018/p0919r3.html
-        https://en.cppreference.com/w/cpp/named_req/UnorderedAssociativeContainer
-
-        template <class K>
-        auto count(const K& x) const -> size_type
-        {
-
-        }
-    **/
+    template <class K, class Useless = std::enable_if_t<details::is_transparent_key_equal_v<Hash>, K>>
+    auto count(const K& key) const -> size_type
+    {
+        return find(key) == end()? 0u : 1u; 
+    }
 
     constexpr auto find(const key_type& key) -> iterator
     {
-        return details::bucket_iterator_to_iterator(find_in_bucket(key, bucket(key)), nodes_);
+        return details::bucket_iterator_to_iterator(find_in_bucket(key, bucket_index(key)), nodes_);
     }
 
     constexpr auto find(const key_type& key) const -> const_iterator
     {
-        return details::bucket_iterator_to_iterator(find_in_bucket(key, bucket(key)), nodes_);
+        return details::bucket_iterator_to_iterator(find_in_bucket(key, bucket_index(key)), nodes_);
+    }
+
+    template <class K, class Useless = std::enable_if_t<details::is_transparent_key_equal_v<Hash>, K>>
+    constexpr auto find(const K& key) -> iterator
+    {
+        return details::bucket_iterator_to_iterator(find_in_bucket(key, bucket_index(key)), nodes_);
+    }
+
+    template <class K, class Useless = std::enable_if_t<details::is_transparent_key_equal_v<Hash>, K>>
+    constexpr auto find(const K& key) const -> const_iterator
+    {
+        return details::bucket_iterator_to_iterator(find_in_bucket(key, bucket_index(key)), nodes_);
     }
 
 private:
-    auto find_in_bucket(const key_type& key, std::size_t bucket_index) -> local_iterator
+    template <class K>
+    auto bucket_index(const K& key) const -> size_type
+    {
+        return compute_index(hash_(key), buckets_.size());
+    }
+
+    template <class K>
+    auto find_in_bucket(const K& key, std::size_t bucket_index) -> local_iterator
     {
         auto b = begin(bucket_index);
         auto e = end(0u);
@@ -517,7 +563,8 @@ private:
         return it;
     }
 
-    auto find_in_bucket(const key_type& key, std::size_t bucket_index) const -> const_local_iterator
+    template <class K>
+    auto find_in_bucket(const K& key, std::size_t bucket_index) const -> const_local_iterator
     {
         auto b = begin(bucket_index);
         auto e = end(0u);
@@ -558,9 +605,9 @@ private:
     auto find_previous_next_using_position(const key_type& key, std::size_t position)
         -> std::size_t*
     {
-        std::size_t bucket_index = bucket(key);
+        std::size_t bindex = bucket_index(key);
 
-        auto previous_next = &buckets_[bucket_index];
+        auto previous_next = &buckets_[bindex];
         while (*previous_next != position)
         {
             previous_next = &nodes_[*previous_next].next;
@@ -571,8 +618,8 @@ private:
 
     void reinsert_entry(node_type& entry, node_index_type index)
     {
-        auto bucket_index = bucket(entry.pair.const_.first);
-        auto old_index = std::exchange(buckets_[bucket_index], index);
+        auto bindex = bucket_index(entry.pair.const_.first);
+        auto old_index = std::exchange(buckets_[bindex], index);
         entry.next = old_index;
     }
 
@@ -634,21 +681,20 @@ private:
     {
         check_for_rehash();
 
-        auto bucket_index = bucket(key);
-        auto local_it = find_in_bucket(key, bucket_index);
+        auto bindex = bucket_index(key);
+        auto local_it = find_in_bucket(key, bindex);
 
         if (local_it != end(0u))
         {
             return std::pair{details::bucket_iterator_to_iterator(local_it, nodes_), false};
         }
 
-        nodes_.emplace_back(buckets_[bucket_index], std::forward<Args>(args)...);
-        buckets_[bucket_index] = nodes_.size() - 1;
+        nodes_.emplace_back(buckets_[bindex], std::forward<Args>(args)...);
+        buckets_[bindex] = nodes_.size() - 1;
 
         return std::pair{std::prev(end()), true};
     }
 
-    // TODO: EBO
     hasher hash_;
     key_equal key_equal_;
 
@@ -661,10 +707,10 @@ private:
 
 namespace std
 {
-template <class Key, class T, class Hash, class KeyEqual, class Allocator, class GrowthPolicy>
+template <class Key, class T, class Hash, class Pred, class Allocator, class GrowthPolicy>
 void swap(
-    jg::dense_hash_map<Key, T, Hash, KeyEqual, Allocator, GrowthPolicy>& lhs,
-    jg::dense_hash_map<Key, T, Hash, KeyEqual, Allocator, GrowthPolicy>&
+    jg::dense_hash_map<Key, T, Hash, Pred, Allocator, GrowthPolicy>& lhs,
+    jg::dense_hash_map<Key, T, Hash, Pred, Allocator, GrowthPolicy>&
         rhs) noexcept(noexcept(lhs.swap(rhs)))
 {
     lhs.swap(rhs);
