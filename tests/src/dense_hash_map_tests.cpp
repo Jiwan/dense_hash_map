@@ -1235,6 +1235,110 @@ TEST_CASE("find transparent hash", "[find]")
     }
 }
 
+TEST_CASE("contains simple hash", "[contains]")
+{
+    jg::dense_hash_map<std::string, int> m1 = {};
+
+    SECTION("key")
+    {
+        REQUIRE_FALSE(m1.contains("queen"));
+
+        m1.try_emplace("queen", 42);
+        REQUIRE(m1.contains("queen"));
+    }
+
+    SECTION("no generic contains")
+    {
+        auto v = is_valid([](const auto& m) -> decltype(m.contains(nested_string{"queen"})) {});
+        REQUIRE_FALSE(v(m1));
+    }
+}
+
+TEST_CASE("contains transparent hash", "[contains]")
+{
+    jg::dense_hash_map<std::string, int, string_hash> m1 = {};
+
+    SECTION("key")
+    {
+        REQUIRE_FALSE(m1.contains(nested_string{"pink floyd"}));
+
+        m1.try_emplace("pink floyd", 42);
+        REQUIRE(m1.contains(nested_string{"pink floyd"}));
+    }
+}
+
+TEST_CASE("equal_range simple hash", "[equal_range]")
+{
+    jg::dense_hash_map<std::string, int> m1 = {};
+
+    SECTION("non-const")
+    {
+        auto [it, end] = m1.equal_range("queen");
+        REQUIRE(it == m1.end());
+        REQUIRE(end == m1.end());
+
+        m1.try_emplace("queen", 42);
+        auto [it2, end2] = m1.equal_range("queen");
+        REQUIRE(it2 != m1.end());
+        REQUIRE(it2->second == 42);
+        REQUIRE(std::distance(it2, end2) == 1);
+        static_assert(std::is_same_v<decltype((it2->second)), int&>);
+    }
+
+    SECTION("const")
+    {   
+        const auto& m2 = m1; 
+        auto [it, end] = m2.equal_range("queen");
+        REQUIRE(it == m2.end());
+        REQUIRE(end == m1.end());
+
+        m1.try_emplace("queen", 42);
+        auto [it2, end2] = m2.equal_range("queen");
+        REQUIRE(it2 != m2.end());
+        REQUIRE(it2->second == 42);
+        REQUIRE(std::distance(it2, end2) == 1);
+        static_assert(std::is_same_v<decltype((it2->second)), const int&>);
+    }
+
+    SECTION("no generic equal_range")
+    {
+        auto v = is_valid([](const auto& m) -> decltype(m.equal_range(nested_string{"queen"})) {});
+        REQUIRE_FALSE(v(m1));
+    }
+}
+
+TEST_CASE("equal_range transparent hash", "[equal_range]")
+{
+    jg::dense_hash_map<std::string, int, string_hash> m1 = {};
+
+    SECTION("non-const")
+    {
+        auto [it, end] = m1.equal_range(nested_string{"queen"});
+        REQUIRE(it == m1.end());
+        REQUIRE(end == m1.end());
+
+        m1.try_emplace("queen", 42);
+        auto [it2, end2] = m1.equal_range(nested_string{"queen"});
+        REQUIRE(it2 != m1.end());
+        REQUIRE(it2->second == 42);
+        REQUIRE(std::distance(it2, end2) == 1);
+        static_assert(std::is_same_v<decltype((it2->second)), int&>);
+    }
+
+    SECTION("const")
+    {   
+        const auto& m2 = m1; 
+        auto [it, end] = m2.equal_range(nested_string{"queen"});
+        REQUIRE(it == m2.end());
+
+        m1.try_emplace("queen", 42);
+        auto [it2, end2] = m2.equal_range(nested_string{"queen"});
+        REQUIRE(it2 != m2.end());
+        REQUIRE(it2->second == 42);
+        REQUIRE(std::distance(it2, end2) == 1);
+        static_assert(std::is_same_v<decltype((it2->second)), const int&>);
+    }
+}
 
 TEST_CASE("Move only types") {}
 

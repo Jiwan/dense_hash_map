@@ -547,6 +547,63 @@ public:
         return details::bucket_iterator_to_iterator(find_in_bucket(key, bucket_index(key)), nodes_);
     }
 
+    constexpr bool contains( const key_type& key ) const
+    {
+        return find(key) != end(); 
+    }
+
+    template< class K , class Useless = std::enable_if_t<details::is_transparent_key_equal_v<Hash>, K>> 
+    constexpr bool contains( const K& key ) const
+    {
+        return find(key) != end(); 
+    }
+
+    constexpr std::pair<iterator, iterator> equal_range( const Key& key )
+    {
+        const auto it = find(key);
+
+        if (it == end()) {
+            return {it, it}; 
+        }
+
+        return {it, std::next(it)};
+    }
+
+    constexpr std::pair<const_iterator,const_iterator> equal_range( const Key& key ) const
+    {
+        const auto it = find(key);
+
+        if (it == end()) {
+            return {it, it}; 
+        }
+
+        return {it, std::next(it)};
+    }
+
+    template< class K , class Useless = std::enable_if_t<details::is_transparent_key_equal_v<Hash>, K>>
+    constexpr std::pair<iterator,iterator> equal_range( const K& key )
+    {
+        const auto it = find(key);
+
+        if (it == end()) {
+            return {it, it}; 
+        }
+
+        return {it, std::next(it)};
+    }
+
+    template< class K , class Useless = std::enable_if_t<details::is_transparent_key_equal_v<Hash>, K>>
+    constexpr std::pair<const_iterator,const_iterator> equal_range( const K& key ) const
+    {
+        const auto it = find(key);
+
+        if (it == end()) {
+            return {it, it}; 
+        }
+
+        return {it, std::next(it)};
+    }
+
 private:
     template <class K>
     auto bucket_index(const K& key) const -> size_type
