@@ -365,14 +365,19 @@ public:
 
     auto bucket_count() const -> size_type { return buckets_.size(); }
 
-    auto bucket_size(size_type n) const -> size_type
+    constexpr auto bucket_size(size_type n) const -> size_type
     {
         return static_cast<size_t>(std::distance(begin(n), end(n)));
     }
 
-    auto bucket(const key_type& key) const -> size_type
+    constexpr auto bucket(const key_type& key) const -> size_type
     {
         return bucket_index(key); 
+    }
+
+    constexpr size_type max_bucket_count() const
+    {
+        return buckets_.max_size();
     }
 
     auto load_factor() const -> float { return size() / static_cast<float>(bucket_count()); }

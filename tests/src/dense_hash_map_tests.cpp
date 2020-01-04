@@ -4,6 +4,7 @@
 #include "jg/dense_hash_map.hpp"
 #include "jg/details/type_traits.hpp"
 
+#include <algorithm>
 #include <string>
 #include <vector>
 
@@ -1338,6 +1339,50 @@ TEST_CASE("equal_range transparent hash", "[equal_range]")
         REQUIRE(std::distance(it2, end2) == 1);
         static_assert(std::is_same_v<decltype((it2->second)), const int&>);
     }
+}
+
+TEST_CASE("bucket iterator")
+{
+    jg::dense_hash_map<std::string, int, collision_hasher> m = {{"pierre", 1}, {"paul", 2}, {"jacques", 3}};
+
+    std::vector<std::pair<const std::string, int>> expected = {{"jacques", 3}, {"paul", 2}, {"pierre", 1}};
+
+    SECTION("begin/end")
+    {
+        static_assert(std::is_same_v<decltype((m.begin(0u)->second)), int&>);
+        REQUIRE(std::equal(expected.begin(), expected.end(), m.begin(0), m.end(0)));
+    }
+
+    SECTION("const begin/end")
+    {
+        const auto& m2 = m;
+        static_assert(std::is_same_v<decltype((m2.begin(0u)->second)), const int&>);
+        REQUIRE(std::equal(expected.begin(), expected.end(), m2.begin(0), m2.end(0)));
+    }
+
+    SECTION("cbegin/cend")
+    {
+        static_assert(std::is_same_v<decltype((m.cbegin(0u)->second)), const int&>);
+        REQUIRE(std::equal(expected.cbegin(), expected.cend(), m.cbegin(0), m.cend(0)));
+    }
+}
+
+TEST_CASE("bucket_count")
+{
+    jg::dense_hash_map<int, int> m;
+
+    const auto& m2 = m;
+    REQUIRE(m2.bucket_count() > 0);
+    REQUIRE(m2.bucket_count() < m2.max_bucket_count());
+}
+
+TEST_CASE("bucket index")
+{
+    jg::dense_hash_map<std::string, int, collision_hasher> m = {{"pierre", 1}, {"paul", 2}, {"jacques", 3}};
+
+    REQUIRE(m.bucket("pierre") == 0);
+    REQUIRE(m.bucket("paul") == 0);
+    REQUIRE(m.bucket("jacques") == 0);
 }
 
 TEST_CASE("Move only types") {}

@@ -76,6 +76,14 @@ private:
 };
 
 template <class Key, class T, bool isConst, bool projectToConstKey, bool isConst2>
+constexpr auto operator==(
+    const bucket_iterator<Key, T, isConst, projectToConstKey>& lhs,
+    const bucket_iterator<Key, T, isConst2, projectToConstKey>& rhs) noexcept -> bool
+{
+    return lhs.current_node_index() == rhs.current_node_index();
+}
+
+template <class Key, class T, bool isConst, bool projectToConstKey, bool isConst2>
 constexpr auto operator!=(
     const bucket_iterator<Key, T, isConst, projectToConstKey>& lhs,
     const bucket_iterator<Key, T, isConst2, projectToConstKey>& rhs) noexcept -> bool
