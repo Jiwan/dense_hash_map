@@ -1,6 +1,6 @@
 - Exception free.
+- Start with size 0 for buckets.
 - Unit-tests for all functions and stuff.
-- Disable copy-constructor for pair types that do not support them.
 - Move only types...
 - Slap constexpr as much as possible.
 - noexcept as much as possible!
@@ -9,3 +9,6 @@
 - Benchmarks.
 - Setup travis.
 - Doc.
+
+Done:
+- Disable copy-constructor for pair types that do not support them.
