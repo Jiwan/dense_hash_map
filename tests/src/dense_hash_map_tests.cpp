@@ -1475,6 +1475,12 @@ TEST_CASE("erase_if")
     }
 }
 
+TEST_CASE("deduction guides")
+{
+    std::unordered_map m1 = {std::pair{"foo", 2}, {"bar", 3}}; // guide #2
+    std::unordered_map m2(m1.begin(), m1.end()); // guide #1
+}
+
 TEST_CASE("Move only types") {}
 
 TEST_CASE("growth policy") {}
