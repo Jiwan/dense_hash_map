@@ -46,7 +46,8 @@ namespace details
     using detect_transparent_key_equal = typename Hash::transparent_key_equal;
 
     template <class Hash>
-    inline constexpr bool is_transparent_key_equal_v = is_detected<detect_transparent_key_equal, Hash>::value;
+    inline constexpr bool is_transparent_key_equal_v =
+        is_detected<detect_transparent_key_equal, Hash>::value;
 
     template <class Pred>
     using detect_is_transparent = typename Pred::is_transparent;
@@ -65,11 +66,25 @@ namespace details
     {
         using type = typename Hash::transparent_key_equal;
 
-        static_assert(is_transparent_v<type>, "The associated transparent key equal is missing a is_transparent tag type.");
         static_assert(
-            std::is_same_v<Pred, std::equal_to<Key>> || std::is_same_v<Pred, type>, 
-            "The associated transparent key equal must be the transparent_key_equal tag or std::equal_to<Key>");
+            is_transparent_v<type>,
+            "The associated transparent key equal is missing a is_transparent tag type.");
+        static_assert(
+            std::is_same_v<Pred, std::equal_to<Key>> || std::is_same_v<Pred, type>,
+            "The associated transparent key equal must be the transparent_key_equal tag or "
+            "std::equal_to<Key>");
     };
+
+    template <class InputIt>
+    using iter_key_t =
+        std::remove_const_t<typename std::iterator_traits<InputIt>::value_type::first_type>;
+
+    template <class InputIt>
+    using iter_val_t = typename std::iterator_traits<InputIt>::value_type::second_type;
+
+    template <class InputIt>
+    using iter_to_alloc_t = std::pair<std::add_const_t<iter_key_t<InputIt>>, iter_val_t<InputIt>>;
+
 } // namespace details
 
 template <
@@ -164,8 +179,8 @@ public:
 
     constexpr dense_hash_map(
         const dense_hash_map& other, const allocator_type& alloc) /* TODO: noexcept */
-        : hash_(other.hash_, alloc)
-        , key_equal_(other.key_equal_, alloc)
+        : hash_(other.hash_)
+        , key_equal_(other.key_equal_)
         , buckets_(other.buckets_, alloc)
         , nodes_(other.nodes_, alloc)
     {}
@@ -173,8 +188,8 @@ public:
     constexpr dense_hash_map(dense_hash_map&& other) = default; /* TODO: noexcept */
     constexpr dense_hash_map(
         dense_hash_map&& other, const allocator_type& alloc) /* TODO: noexcept */
-        : hash_(std::move(other.hash_), alloc)
-        , key_equal_(std::move(other.key_equal_), alloc)
+        : hash_(std::move(other.hash_))
+        , key_equal_(std::move(other.key_equal_))
         , buckets_(std::move(other.buckets_), alloc)
         , nodes_(std::move(other.nodes_), alloc)
     {}
@@ -370,15 +385,9 @@ public:
         return static_cast<size_t>(std::distance(begin(n), end(n)));
     }
 
-    constexpr auto bucket(const key_type& key) const -> size_type
-    {
-        return bucket_index(key); 
-    }
+    constexpr auto bucket(const key_type& key) const -> size_type { return bucket_index(key); }
 
-    constexpr size_type max_bucket_count() const
-    {
-        return buckets_.max_size();
-    }
+    constexpr auto max_bucket_count() const -> size_type { return buckets_.max_size(); }
 
     auto load_factor() const -> float { return size() / static_cast<float>(bucket_count()); }
 
@@ -418,6 +427,10 @@ public:
     }
 
     constexpr void reserve(std::size_t count) { rehash(std::ceil(count / max_load_factor())); }
+
+    constexpr auto hash_function() const -> hasher { return hash_; }
+
+    constexpr auto key_eq() const -> key_equal { return key_equal_; }
 
     auto erase(const_iterator pos) -> iterator
     {
@@ -510,8 +523,8 @@ public:
     }
 
     constexpr auto operator[](const key_type& key) -> T&
-    { 
-        return this->try_emplace(key).first->second; 
+    {
+        return this->try_emplace(key).first->second;
     }
 
     constexpr auto operator[](key_type&& key) -> T&
@@ -519,15 +532,13 @@ public:
         return this->try_emplace(std::move(key)).first->second;
     }
 
-    auto count(const key_type& key) const -> size_type
-    {
-        return find(key) == end()? 0u : 1u; 
-    }
+    auto count(const key_type& key) const -> size_type { return find(key) == end() ? 0u : 1u; }
 
-    template <class K, class Useless = std::enable_if_t<details::is_transparent_key_equal_v<Hash>, K>>
+    template <
+        class K, class Useless = std::enable_if_t<details::is_transparent_key_equal_v<Hash>, K>>
     auto count(const K& key) const -> size_type
     {
-        return find(key) == end()? 0u : 1u; 
+        return find(key) == end() ? 0u : 1u;
     }
 
     constexpr auto find(const key_type& key) -> iterator
@@ -540,70 +551,76 @@ public:
         return details::bucket_iterator_to_iterator(find_in_bucket(key, bucket_index(key)), nodes_);
     }
 
-    template <class K, class Useless = std::enable_if_t<details::is_transparent_key_equal_v<Hash>, K>>
+    template <
+        class K, class Useless = std::enable_if_t<details::is_transparent_key_equal_v<Hash>, K>>
     constexpr auto find(const K& key) -> iterator
     {
         return details::bucket_iterator_to_iterator(find_in_bucket(key, bucket_index(key)), nodes_);
     }
 
-    template <class K, class Useless = std::enable_if_t<details::is_transparent_key_equal_v<Hash>, K>>
+    template <
+        class K, class Useless = std::enable_if_t<details::is_transparent_key_equal_v<Hash>, K>>
     constexpr auto find(const K& key) const -> const_iterator
     {
         return details::bucket_iterator_to_iterator(find_in_bucket(key, bucket_index(key)), nodes_);
     }
 
-    constexpr bool contains( const key_type& key ) const
+    constexpr auto contains(const key_type& key) const -> bool { return find(key) != end(); }
+
+    template <
+        class K, class Useless = std::enable_if_t<details::is_transparent_key_equal_v<Hash>, K>>
+    constexpr auto contains(const K& key) const -> bool
     {
-        return find(key) != end(); 
+        return find(key) != end();
     }
 
-    template< class K , class Useless = std::enable_if_t<details::is_transparent_key_equal_v<Hash>, K>> 
-    constexpr bool contains( const K& key ) const
-    {
-        return find(key) != end(); 
-    }
-
-    constexpr std::pair<iterator, iterator> equal_range( const Key& key )
+    constexpr auto equal_range(const Key& key) -> std::pair<iterator, iterator>
     {
         const auto it = find(key);
 
-        if (it == end()) {
-            return {it, it}; 
+        if (it == end())
+        {
+            return {it, it};
         }
 
         return {it, std::next(it)};
     }
 
-    constexpr std::pair<const_iterator,const_iterator> equal_range( const Key& key ) const
+    constexpr auto equal_range(const Key& key) const -> std::pair<const_iterator, const_iterator>
     {
         const auto it = find(key);
 
-        if (it == end()) {
-            return {it, it}; 
+        if (it == end())
+        {
+            return {it, it};
         }
 
         return {it, std::next(it)};
     }
 
-    template< class K , class Useless = std::enable_if_t<details::is_transparent_key_equal_v<Hash>, K>>
-    constexpr std::pair<iterator,iterator> equal_range( const K& key )
+    template <
+        class K, class Useless = std::enable_if_t<details::is_transparent_key_equal_v<Hash>, K>>
+    constexpr auto equal_range(const K& key) -> std::pair<iterator, iterator>
     {
         const auto it = find(key);
 
-        if (it == end()) {
-            return {it, it}; 
+        if (it == end())
+        {
+            return {it, it};
         }
 
         return {it, std::next(it)};
     }
 
-    template< class K , class Useless = std::enable_if_t<details::is_transparent_key_equal_v<Hash>, K>>
-    constexpr std::pair<const_iterator,const_iterator> equal_range( const K& key ) const
+    template <
+        class K, class Useless = std::enable_if_t<details::is_transparent_key_equal_v<Hash>, K>>
+    constexpr auto equal_range(const K& key) const -> std::pair<const_iterator, const_iterator>
     {
         const auto it = find(key);
 
-        if (it == end()) {
-            return {it, it}; 
+        if (it == end())
+        {
+            return {it, it};
         }
 
         return {it, std::next(it)};
@@ -765,6 +782,91 @@ private:
     float max_load_factor_ = details::default_max_load_factor;
 };
 
+template <class Key, class T, class Hash, class KeyEqual, class Allocator>
+constexpr auto operator==(
+    const dense_hash_map<Key, T, Hash, KeyEqual, Allocator>& lhs,
+    const dense_hash_map<Key, T, Hash, KeyEqual, Allocator>& rhs) -> bool
+{
+    if (lhs.size() != rhs.size())
+    {
+        return false;
+    }
+
+    for (const auto& item : lhs)
+    {
+        const auto it = rhs.find(item.first);
+
+        if (it == rhs.end() || it->second != item.second)
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+template <class Key, class T, class Hash, class KeyEqual, class Allocator>
+constexpr auto operator!=(
+    const dense_hash_map<Key, T, Hash, KeyEqual, Allocator>& lhs,
+    const dense_hash_map<Key, T, Hash, KeyEqual, Allocator>& rhs) -> bool
+{
+    return !(lhs == rhs);
+}
+
+template <
+    class InputIt, class Hash = std::hash<details::iter_key_t<InputIt>>,
+    class Pred = std::equal_to<details::iter_key_t<InputIt>>,
+    class Alloc = std::allocator<details::iter_to_alloc_t<InputIt>>>
+dense_hash_map(
+    InputIt, InputIt,
+    details::node_index_t<details::iter_key_t<InputIt>, details::iter_val_t<InputIt>> = 8,
+    Hash = Hash(), Pred = Pred(), Alloc = Alloc())
+    ->dense_hash_map<details::iter_key_t<InputIt>, details::iter_val_t<InputIt>, Hash, Pred, Alloc>;
+
+template <
+    class Key, class T, class Hash = std::hash<Key>, class Pred = std::equal_to<Key>,
+    class Alloc = std::allocator<std::pair<const Key, T>>>
+dense_hash_map(
+    std::initializer_list<std::pair<Key, T>>, details::node_index_t<Key, T> = 8, Hash = Hash(),
+    Pred = Pred(), Alloc = Alloc())
+    ->dense_hash_map<Key, T, Hash, Pred, Alloc>;
+
+template <class InputIt, class Alloc>
+dense_hash_map(
+    InputIt, InputIt,
+    details::node_index_t<details::iter_key_t<InputIt>, details::iter_val_t<InputIt>>, Alloc)
+    ->dense_hash_map<
+        details::iter_key_t<InputIt>, details::iter_val_t<InputIt>,
+        std::hash<details::iter_key_t<InputIt>>, std::equal_to<details::iter_key_t<InputIt>>,
+        Alloc>;
+
+template <class InputIt, class Alloc>
+dense_hash_map(InputIt, InputIt, Alloc)
+    ->dense_hash_map<
+        details::iter_key_t<InputIt>, details::iter_val_t<InputIt>,
+        std::hash<details::iter_key_t<InputIt>>, std::equal_to<details::iter_key_t<InputIt>>,
+        Alloc>;
+
+template <class InputIt, class Hash, class Alloc>
+dense_hash_map(
+    InputIt, InputIt,
+    details::node_index_t<details::iter_key_t<InputIt>, details::iter_val_t<InputIt>>, Hash, Alloc)
+    ->dense_hash_map<
+        details::iter_key_t<InputIt>, details::iter_val_t<InputIt>, Hash,
+        std::equal_to<details::iter_key_t<InputIt>>, Alloc>;
+
+template <class Key, class T, typename Alloc>
+dense_hash_map(std::initializer_list<std::pair<Key, T>>, details::node_index_t<Key, T>, Alloc)
+    ->dense_hash_map<Key, T, std::hash<Key>, std::equal_to<Key>, Alloc>;
+
+template <class Key, class T, typename Alloc>
+dense_hash_map(std::initializer_list<std::pair<Key, T>>, Alloc)
+    ->dense_hash_map<Key, T, std::hash<Key>, std::equal_to<Key>, Alloc>;
+
+template <class Key, class T, class Hash, class Alloc>
+dense_hash_map(std::initializer_list<std::pair<Key, T>>, details::node_index_t<Key, T>, Hash, Alloc)
+    ->dense_hash_map<Key, T, Hash, std::equal_to<Key>, Alloc>;
+
 } // namespace jg
 
 namespace std
@@ -776,6 +878,25 @@ void swap(
         rhs) noexcept(noexcept(lhs.swap(rhs)))
 {
     lhs.swap(rhs);
+}
+
+template <class Key, class T, class Hash, class KeyEqual, class Alloc, class Pred>
+void erase_if(jg::dense_hash_map<Key, T, Hash, KeyEqual, Alloc>& c, Pred pred)
+{
+    auto rit = std::make_reverse_iterator(c.end());
+    auto rend = std::make_reverse_iterator(c.begin());
+
+    while (rit != rend)
+    {
+        if (pred(*rit))
+        {
+            rit = std::make_reverse_iterator(c.erase(std::prev(rit.base())));
+        }
+        else
+        {
+            ++rit;
+        }
+    }
 }
 
 } // namespace std

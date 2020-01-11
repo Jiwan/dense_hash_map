@@ -96,40 +96,41 @@ auto operator!=(
     return lhs.name != rhs.name;
 }
 
-struct nested_string 
+struct nested_string
 {
     std::string value;
 };
 
-struct string_hash {
-  using transparent_key_equal = std::equal_to<>; 
-  using hash_type = std::hash<std::string>; 
-  size_t operator()(const std::string& s) const { return hash_type{}(s); }
-  size_t operator()(const nested_string& s) const { return hash_type{}(s.value); }
+struct string_hash
+{
+    using transparent_key_equal = std::equal_to<>;
+    using hash_type = std::hash<std::string>;
+    auto operator()(const std::string& s) const -> size_t { return hash_type{}(s); }
+    auto operator()(const nested_string& s) const -> size_t { return hash_type{}(s.value); }
 };
 
-bool operator==(const std::string& s, const nested_string& ns)
-{
-    return s == ns.value;
-}
+auto operator==(const std::string& s, const nested_string& ns) -> bool { return s == ns.value; }
 
 template <typename UnnamedType>
 struct is_valid_container
 {
 private:
-    template <typename... Params> constexpr auto test_validity(int /* unused */)
+    template <typename... Params>
+    constexpr auto test_validity(int /* unused */)
         -> decltype(std::declval<UnnamedType>()(std::declval<Params>()...), std::true_type())
     {
         return std::true_type();
     }
 
-    template <typename... Params> constexpr std::false_type test_validity(...)
+    template <typename... Params>
+    constexpr auto test_validity(...) -> std::false_type
     {
         return std::false_type();
     }
 
 public:
-    template <typename... Params> constexpr auto operator()(Params&& ...)
+    template <typename... Params>
+    constexpr auto operator()(Params&&...)
     {
         return test_validity<Params...>(int());
     }
@@ -1187,8 +1188,8 @@ TEST_CASE("find simple hash", "[find]")
     }
 
     SECTION("const")
-    {   
-        const auto& m2 = m1; 
+    {
+        const auto& m2 = m1;
         auto it = m2.find("queen");
         REQUIRE(it == m2.end());
 
@@ -1223,8 +1224,8 @@ TEST_CASE("find transparent hash", "[find]")
     }
 
     SECTION("const")
-    {   
-        const auto& m2 = m1; 
+    {
+        const auto& m2 = m1;
         auto it = m2.find(nested_string{"queen"});
         REQUIRE(it == m2.end());
 
@@ -1287,8 +1288,8 @@ TEST_CASE("equal_range simple hash", "[equal_range]")
     }
 
     SECTION("const")
-    {   
-        const auto& m2 = m1; 
+    {
+        const auto& m2 = m1;
         auto [it, end] = m2.equal_range("queen");
         REQUIRE(it == m2.end());
         REQUIRE(end == m1.end());
@@ -1327,8 +1328,8 @@ TEST_CASE("equal_range transparent hash", "[equal_range]")
     }
 
     SECTION("const")
-    {   
-        const auto& m2 = m1; 
+    {
+        const auto& m2 = m1;
         auto [it, end] = m2.equal_range(nested_string{"queen"});
         REQUIRE(it == m2.end());
 
@@ -1343,9 +1344,11 @@ TEST_CASE("equal_range transparent hash", "[equal_range]")
 
 TEST_CASE("bucket iterator")
 {
-    jg::dense_hash_map<std::string, int, collision_hasher> m = {{"pierre", 1}, {"paul", 2}, {"jacques", 3}};
+    jg::dense_hash_map<std::string, int, collision_hasher> m = {
+        {"pierre", 1}, {"paul", 2}, {"jacques", 3}};
 
-    std::vector<std::pair<const std::string, int>> expected = {{"jacques", 3}, {"paul", 2}, {"pierre", 1}};
+    std::vector<std::pair<const std::string, int>> expected = {
+        {"jacques", 3}, {"paul", 2}, {"pierre", 1}};
 
     SECTION("begin/end")
     {
@@ -1378,11 +1381,98 @@ TEST_CASE("bucket_count")
 
 TEST_CASE("bucket index")
 {
-    jg::dense_hash_map<std::string, int, collision_hasher> m = {{"pierre", 1}, {"paul", 2}, {"jacques", 3}};
+    jg::dense_hash_map<std::string, int, collision_hasher> m = {
+        {"pierre", 1}, {"paul", 2}, {"jacques", 3}};
 
     REQUIRE(m.bucket("pierre") == 0);
     REQUIRE(m.bucket("paul") == 0);
     REQUIRE(m.bucket("jacques") == 0);
+}
+
+TEST_CASE("load_factor")
+{
+    jg::dense_hash_map<std::string, int> m = {{"pierre", 1}, {"paul", 2}, {"jacques", 3}};
+    const auto& cm = m;
+
+    REQUIRE(cm.load_factor() < cm.max_load_factor());
+    REQUIRE(cm.load_factor() < cm.max_load_factor());
+}
+
+TEST_CASE("observers")
+{
+    const jg::dense_hash_map<std::string, int> m = {};
+
+    SECTION("hash_function")
+    {
+        REQUIRE(std::is_same_v<decltype(m.hash_function()), std::hash<std::string>>);
+    }
+
+    SECTION("key_eq") { REQUIRE(std::is_same_v<decltype(m.key_eq()), std::equal_to<std::string>>); }
+}
+
+TEST_CASE("comparison")
+{
+    jg::dense_hash_map<std::string, int> m1 = {{"pierre", 1}, {"paul", 2}, {"jacques", 3}};
+
+    SECTION("equal")
+    {
+        auto m2 = m1;
+        REQUIRE(m2 == m1);
+        REQUIRE_FALSE(m2 != m1);
+    }
+
+    SECTION("not the same value")
+    {
+        auto m2 = m1;
+        m2["pierre"] = 42;
+        REQUIRE_FALSE(m2 == m1);
+        REQUIRE(m2 != m1);
+    }
+
+    SECTION("extra entry")
+    {
+        auto m2 = m1;
+        m2["santa"] = 666;
+        REQUIRE_FALSE(m2 == m1);
+        REQUIRE(m2 != m1);
+    }
+}
+
+TEST_CASE("erase_if")
+{
+    jg::dense_hash_map<std::string, int> m1 = {{"tintin", 42}, {"milou", 666}, {"haddock", 13}};
+
+    SECTION("on value")
+    {
+        std::erase_if(m1, [](auto& pair) {
+            if (pair.second > 40)
+            {
+                return true;
+            }
+
+            return false;
+        });
+
+        std::vector<std::pair<const std::string, int>> expected = {{"haddock", 13}};
+
+        REQUIRE(std::equal(m1.begin(), m1.end(), expected.begin(), expected.end()));
+    }
+
+    SECTION("on key")
+    {
+        std::erase_if(m1, [](auto& pair) {
+            if (pair.first[0] == 'h')
+            {
+                return true;
+            }
+
+            return false;
+        });
+
+        std::vector<std::pair<const std::string, int>> expected = {{"tintin", 42}, {"milou", 666}};
+
+        REQUIRE(std::equal(m1.begin(), m1.end(), expected.begin(), expected.end()));
+    }
 }
 
 TEST_CASE("Move only types") {}
