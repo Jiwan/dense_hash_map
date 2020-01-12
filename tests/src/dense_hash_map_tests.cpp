@@ -1477,8 +1477,33 @@ TEST_CASE("erase_if")
 
 TEST_CASE("deduction guides")
 {
-    std::unordered_map m1 = {std::pair{"foo", 2}, {"bar", 3}}; // guide #2
-    std::unordered_map m2(m1.begin(), m1.end()); // guide #1
+    jg::dense_hash_map<std::string, int> m; 
+
+    jg::dense_hash_map m1(m.begin(), m.end());
+    REQUIRE(std::is_same_v<decltype(m1), jg::dense_hash_map<std::string, int>>);
+
+    jg::dense_hash_map m2({std::pair{"foo", 2}, {"bar", 3}});
+    REQUIRE(std::is_same_v<decltype(m2), jg::dense_hash_map<const char*, int>>);
+
+    jg::dense_hash_map m3(m.begin(), m.end(), 42u, named_allocator<const char*>{"test"});
+    REQUIRE(std::is_same_v<decltype(m3), jg::dense_hash_map<std::string, int, std::hash<std::string>, std::equal_to<std::string>, named_allocator<const char*>>>);
+
+    // Rule 4 is bunker...
+    //jg::dense_hash_map m4(m.begin(), m.end(), named_allocator<const char*>{"test"});
+    //REQUIRE(std::is_same_v<decltype(m4), jg::dense_hash_map<std::string, int, std::hash<std::string>, std::equal_to<std::string>, named_allocator<const char*>>>);
+
+    jg::dense_hash_map m5(m.begin(), m.end(), 42u, collision_hasher{}, named_allocator<const char*>{"test"});
+    REQUIRE(std::is_same_v<decltype(m5), jg::dense_hash_map<std::string, int, collision_hasher, std::equal_to<std::string>, named_allocator<const char*>>>);
+    
+    jg::dense_hash_map m6({std::pair{"foo", 2}, {"bar", 3}}, 42u, named_allocator<std::string>{"test"});
+    REQUIRE(std::is_same_v<decltype(m6), jg::dense_hash_map<const char*, int, std::hash<const char*>, std::equal_to<const char*>, named_allocator<std::string>>>);
+
+    // Rule 7 is also bunker... The test below is actually relying on the copy-constructor + allocator.
+    jg::dense_hash_map m7({std::pair{"foo", 2}, {"bar", 3}}, named_allocator<std::string>{"test"});
+    REQUIRE(std::is_same_v<decltype(m7), jg::dense_hash_map<const char*, int, std::hash<const char*>, std::equal_to<const char*>, named_allocator<std::string>>>);
+
+    jg::dense_hash_map m8({std::pair{"foo", 2}, {"bar", 3}}, 42u, collision_hasher{}, named_allocator<std::string>{"test"});
+    REQUIRE(std::is_same_v<decltype(m7), jg::dense_hash_map<const char*, int, std::hash<const char*>, std::equal_to<const char*>, named_allocator<std::string>>>);
 }
 
 TEST_CASE("Move only types") {}

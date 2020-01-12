@@ -23,18 +23,18 @@ namespace details
 {
     static constexpr const float default_max_load_factor = 0.875f;
 
-    template <class Key, class T, bool isConst, bool projectToConstKey, class Nodes>
+    template <class Key, class T, class Container, bool isConst, bool projectToConstKey, class Nodes>
     [[nodiscard]] constexpr auto bucket_iterator_to_iterator(
-        const bucket_iterator<Key, T, isConst, projectToConstKey>& bucket_it, Nodes& nodes)
-        -> dense_hash_map_iterator<Key, T, isConst, projectToConstKey>
+        const bucket_iterator<Key, T, Container, isConst, projectToConstKey>& bucket_it, Nodes& nodes)
+        -> dense_hash_map_iterator<Key, T, Container, isConst, projectToConstKey>
     {
         if (bucket_it.current_node_index() == details::node_end_index<Key, T>)
         {
-            return dense_hash_map_iterator<Key, T, isConst, projectToConstKey>{nodes.end()};
+            return dense_hash_map_iterator<Key, T, Container, isConst, projectToConstKey>{nodes.end()};
         }
         else
         {
-            return dense_hash_map_iterator<Key, T, isConst, projectToConstKey>{
+            return dense_hash_map_iterator<Key, T, Container, isConst, projectToConstKey>{
                 std::next(nodes.begin(), bucket_it.current_node_index())};
         }
     }
@@ -85,6 +85,27 @@ namespace details
     template <class InputIt>
     using iter_to_alloc_t = std::pair<std::add_const_t<iter_key_t<InputIt>>, iter_val_t<InputIt>>;
 
+    template <class Alloc>
+    using detect_allocate = decltype(std::declval<Alloc&>().allocate(std::size_t{}));
+
+    template <class Alloc>
+    using detect_value_type = typename Alloc::value_type;
+
+    template <class Alloc>
+    inline constexpr bool is_iterator_v = details::is_detected<detect_allocate, Alloc>::value && details::is_detected<detect_value_type, Alloc>::value;
+
+    template <class Alloc>
+    using require_allocator = std::enable_if_t<is_iterator_v<Alloc>>;
+
+    template <class T>
+    using require_not_allocator = std::enable_if_t<!is_iterator_v<T>>;
+
+    template <class T>
+    using require_not_allocator_and_integral = std::enable_if_t<!is_iterator_v<T> && !std::is_integral_v<T>>;
+    
+    template <class It>
+    using require_input_iterator = std::enable_if_t<!std::is_integral_v<It>>;
+
 } // namespace details
 
 template <
@@ -120,10 +141,10 @@ public:
     using const_reference = value_type&;
     using pointer = typename std::allocator_traits<allocator_type>::pointer;
     using const_pointer = typename std::allocator_traits<allocator_type>::const_pointer;
-    using iterator = details::dense_hash_map_iterator<Key, T, false, true>;
-    using const_iterator = details::dense_hash_map_iterator<Key, T, true, true>;
-    using local_iterator = details::bucket_iterator<Key, T, false, true>;
-    using const_local_iterator = details::bucket_iterator<Key, T, true, true>;
+    using iterator = details::dense_hash_map_iterator<Key, T, entries_container_type, false, true>;
+    using const_iterator = details::dense_hash_map_iterator<Key, T, entries_container_type, true, true>;
+    using local_iterator = details::bucket_iterator<Key, T, entries_container_type, false, true>;
+    using const_local_iterator = details::bucket_iterator<Key, T, entries_container_type, true, true>;
 
     constexpr dense_hash_map() : dense_hash_map(minimum_capacity()) {}
 
@@ -814,9 +835,15 @@ constexpr auto operator!=(
 }
 
 template <
-    class InputIt, class Hash = std::hash<details::iter_key_t<InputIt>>,
+    class InputIt, 
+    class Hash = std::hash<details::iter_key_t<InputIt>>,
     class Pred = std::equal_to<details::iter_key_t<InputIt>>,
-    class Alloc = std::allocator<details::iter_to_alloc_t<InputIt>>>
+    class Alloc = std::allocator<details::iter_to_alloc_t<InputIt>>,
+    class = details::require_input_iterator<InputIt>,
+    class = details::require_not_allocator_and_integral<Hash>,
+    class = details::require_not_allocator<Pred>,
+    class = details::require_allocator<Alloc>
+    >
 dense_hash_map(
     InputIt, InputIt,
     details::node_index_t<details::iter_key_t<InputIt>, details::iter_val_t<InputIt>> = 8,
@@ -824,14 +851,26 @@ dense_hash_map(
     ->dense_hash_map<details::iter_key_t<InputIt>, details::iter_val_t<InputIt>, Hash, Pred, Alloc>;
 
 template <
-    class Key, class T, class Hash = std::hash<Key>, class Pred = std::equal_to<Key>,
-    class Alloc = std::allocator<std::pair<const Key, T>>>
+    class Key, 
+    class T, 
+    class Hash = std::hash<Key>, 
+    class Pred = std::equal_to<Key>,
+    class Alloc = std::allocator<std::pair<const Key, T>>,
+    class = details::require_not_allocator_and_integral<Hash>,
+    class = details::require_not_allocator<Pred>,
+    class = details::require_allocator<Alloc>
+    >
 dense_hash_map(
     std::initializer_list<std::pair<Key, T>>, details::node_index_t<Key, T> = 8, Hash = Hash(),
     Pred = Pred(), Alloc = Alloc())
     ->dense_hash_map<Key, T, Hash, Pred, Alloc>;
 
-template <class InputIt, class Alloc>
+template <
+    class InputIt, 
+    class Alloc,
+    class = details::require_input_iterator<InputIt>,
+    class = details::require_allocator<Alloc>
+    >
 dense_hash_map(
     InputIt, InputIt,
     details::node_index_t<details::iter_key_t<InputIt>, details::iter_val_t<InputIt>>, Alloc)
@@ -840,14 +879,27 @@ dense_hash_map(
         std::hash<details::iter_key_t<InputIt>>, std::equal_to<details::iter_key_t<InputIt>>,
         Alloc>;
 
-template <class InputIt, class Alloc>
+// The rule below is supiciously useless.
+template <
+    class InputIt, 
+    class Alloc,
+    class = details::require_input_iterator<InputIt>,
+    class = details::require_allocator<Alloc>
+    >
 dense_hash_map(InputIt, InputIt, Alloc)
     ->dense_hash_map<
         details::iter_key_t<InputIt>, details::iter_val_t<InputIt>,
         std::hash<details::iter_key_t<InputIt>>, std::equal_to<details::iter_key_t<InputIt>>,
         Alloc>;
 
-template <class InputIt, class Hash, class Alloc>
+template <
+    class InputIt, 
+    class Hash, 
+    class Alloc,
+    class = details::require_input_iterator<InputIt>,
+    class = details::require_not_allocator_and_integral<Hash>,
+    class = details::require_allocator<Alloc>
+    >
 dense_hash_map(
     InputIt, InputIt,
     details::node_index_t<details::iter_key_t<InputIt>, details::iter_val_t<InputIt>>, Hash, Alloc)
@@ -855,15 +907,32 @@ dense_hash_map(
         details::iter_key_t<InputIt>, details::iter_val_t<InputIt>, Hash,
         std::equal_to<details::iter_key_t<InputIt>>, Alloc>;
 
-template <class Key, class T, typename Alloc>
+template <
+    class Key, 
+    class T, 
+    class Alloc,
+    class = details::require_allocator<Alloc>
+    >
 dense_hash_map(std::initializer_list<std::pair<Key, T>>, details::node_index_t<Key, T>, Alloc)
     ->dense_hash_map<Key, T, std::hash<Key>, std::equal_to<Key>, Alloc>;
 
-template <class Key, class T, typename Alloc>
+template <
+    class Key, 
+    class T, 
+    class Alloc,
+    class = details::require_allocator<Alloc>
+    >
 dense_hash_map(std::initializer_list<std::pair<Key, T>>, Alloc)
     ->dense_hash_map<Key, T, std::hash<Key>, std::equal_to<Key>, Alloc>;
 
-template <class Key, class T, class Hash, class Alloc>
+template <
+    class Key, 
+    class T, 
+    class Hash, 
+    class Alloc,
+    class = details::require_not_allocator_and_integral<Hash>,
+    class = details::require_allocator<Alloc>
+    >
 dense_hash_map(std::initializer_list<std::pair<Key, T>>, details::node_index_t<Key, T>, Hash, Alloc)
     ->dense_hash_map<Key, T, Hash, std::equal_to<Key>, Alloc>;
 

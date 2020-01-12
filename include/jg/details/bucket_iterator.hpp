@@ -9,11 +9,11 @@
 namespace jg::details
 {
 
-template <class Key, class T, bool isConst, bool projectToConstKey>
+template <class Key, class T, class Container, bool isConst, bool projectToConstKey>
 class bucket_iterator
 {
     using nodes_container_type =
-        std::conditional_t<isConst, const std::vector<node<Key, T>>, std::vector<node<Key, T>>>;
+        std::conditional_t<isConst, const Container, Container>;
     using node_index_type = node_index_t<Key, T>;
     using projected_type = std::pair<std::conditional_t<projectToConstKey, const Key, Key>, T>;
 
@@ -75,18 +75,18 @@ private:
     node_index_type current_node_index_ = node_end_index<Key, T>;
 };
 
-template <class Key, class T, bool isConst, bool projectToConstKey, bool isConst2>
+template <class Key, class T, class Container, bool isConst, bool projectToConstKey, bool isConst2>
 constexpr auto operator==(
-    const bucket_iterator<Key, T, isConst, projectToConstKey>& lhs,
-    const bucket_iterator<Key, T, isConst2, projectToConstKey>& rhs) noexcept -> bool
+    const bucket_iterator<Key, T, Container, isConst, projectToConstKey>& lhs,
+    const bucket_iterator<Key, T, Container, isConst2, projectToConstKey>& rhs) noexcept -> bool
 {
     return lhs.current_node_index() == rhs.current_node_index();
 }
 
-template <class Key, class T, bool isConst, bool projectToConstKey, bool isConst2>
+template <class Key, class T, class Container, bool isConst, bool projectToConstKey, bool isConst2>
 constexpr auto operator!=(
-    const bucket_iterator<Key, T, isConst, projectToConstKey>& lhs,
-    const bucket_iterator<Key, T, isConst2, projectToConstKey>& rhs) noexcept -> bool
+    const bucket_iterator<Key, T, Container, isConst, projectToConstKey>& lhs,
+    const bucket_iterator<Key, T, Container, isConst2, projectToConstKey>& rhs) noexcept -> bool
 {
     return lhs.current_node_index() != rhs.current_node_index();
 }
