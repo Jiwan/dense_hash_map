@@ -156,6 +156,134 @@ struct hash<increase_counter_on_copy_or_move>
 };
 } // namespace std
 
+TEST_CASE("constructors")
+{
+    jg::dense_hash_map<std::string, int> m = {{"pikachu", 40}, {"raichu", 43}};
+
+    SECTION("empty")
+    {
+        REQUIRE(m.size() == 2);
+        REQUIRE(m.bucket_count() == 8);
+        REQUIRE(m.contains("pikachu"));
+        REQUIRE(m["pikachu"] == 40);
+    }
+
+    SECTION("bucket_count / hash / equal / alloc")
+    {
+        jg::dense_hash_map<std::string, int> m1{32};
+        REQUIRE(m1.size() == 0);
+        REQUIRE(m1.bucket_count() == 32);
+
+        jg::dense_hash_map<std::string, int> m2{32, std::hash<std::string>{}};
+        REQUIRE(m2.size() == 0);
+        REQUIRE(m2.bucket_count() == 32);
+
+        jg::dense_hash_map<std::string, int> m3{6, std::hash<std::string>{}, std::equal_to<std::string>{}};
+        REQUIRE(m3.size() == 0);
+        REQUIRE(m3.bucket_count() == 8);
+
+        jg::dense_hash_map<std::string, int> m4{0, std::hash<std::string>{}, std::equal_to<std::string>{}, std::allocator<std::pair<const std::string, int>>{}};
+        REQUIRE(m4.size() == 0);
+        REQUIRE(m4.bucket_count() == 8);
+    }
+
+    SECTION("bucket_count / alloc")
+    {
+        jg::dense_hash_map<std::string, int> m1{64, std::allocator<std::pair<const std::string, int>>{}};
+        REQUIRE(m1.size() == 0);
+        REQUIRE(m1.bucket_count() == 64);
+    }
+
+    SECTION("bucket_count / hash / alloc")
+    {
+        jg::dense_hash_map<std::string, int> m1{9, std::hash<std::string>{}, std::allocator<std::pair<const std::string, int>>{}};
+        REQUIRE(m1.size() == 0);
+        REQUIRE(m1.bucket_count() == 16);
+    }
+
+    SECTION("alloc")
+    {
+        jg::dense_hash_map<std::string, int> m1{std::allocator<std::pair<const std::string, int>>{}};
+        REQUIRE(m1.size() == 0);
+        REQUIRE(m1.bucket_count() == 8);
+    }
+
+    SECTION("input iterator / bucket_count / hash / equal / alloc")
+    {
+        jg::dense_hash_map<std::string, int> m1{m.begin(), m.end()};
+        REQUIRE(m1.size() == 2);
+        REQUIRE(m1.bucket_count() == 8);
+        REQUIRE(m1.contains("pikachu"));
+        REQUIRE(m1["pikachu"] == 40);
+
+        jg::dense_hash_map<std::string, int> m2{m.begin(), m.end(), 32};
+        REQUIRE(m2.size() == 2);
+        REQUIRE(m2.bucket_count() == 32);
+        REQUIRE(m2.contains("pikachu"));
+        REQUIRE(m2["pikachu"] == 40);
+
+        jg::dense_hash_map<std::string, int> m3{m.begin(), m.end(), 32, std::hash<std::string>{}};
+        REQUIRE(m3.size() == 2);
+        REQUIRE(m3.bucket_count() == 32);
+        REQUIRE(m3.contains("raichu"));
+        REQUIRE(m3["pikachu"] == 43);
+
+        jg::dense_hash_map<std::string, int> m4{m.begin(), m.end(), 6, std::hash<std::string>{}, std::equal_to<std::string>{}};
+        REQUIRE(m4.size() == 2);
+        REQUIRE(m4.bucket_count() == 8);
+        REQUIRE(m4.contains("pikachu"));
+        REQUIRE(m4["pikachu"] == 40);
+
+        jg::dense_hash_map<std::string, int> m5{m.begin(), m.end(), 0, std::hash<std::string>{}, std::equal_to<std::string>{}, std::allocator<std::pair<const std::string, int>>{}};
+        REQUIRE(m5.size() == 2);
+        REQUIRE(m5.bucket_count() == 8);
+        REQUIRE(m5.contains("pikachu"));
+        REQUIRE(m5["pikachu"] == 40);
+    }
+
+    SECTION("input iterator / bucket_count / alloc")
+    {
+        jg::dense_hash_map<std::string, int> m1{m.begin(), m.end(), 8, std::allocator<std::pair<const std::string, int>>{}};
+        REQUIRE(m1.size() == 2);
+        REQUIRE(m1.bucket_count() == 8);
+        REQUIRE(m1.contains("raichu"));
+        REQUIRE(m1["raichu"] == 43);
+    }
+
+    SECTION("input iterator / bucket_count / hash / alloc")
+    {
+        jg::dense_hash_map<std::string, int> m1{m.begin(), m.end(), 8, std::hash<std::string>{}, std::allocator<std::pair<const std::string, int>>{}};
+        REQUIRE(m1.size() == 2);
+        REQUIRE(m1.bucket_count() == 8);
+        REQUIRE(m1.contains("pikachu"));
+        REQUIRE(m1["pikachu"] == 40);
+    }
+
+    SECTION("copy constructor")
+    {
+        jg::dense_hash_map<std::string, int> m1{m};
+        REQUIRE(m1.size() == 2);
+        REQUIRE(m1.bucket_count() == 8);
+        REQUIRE(m1.contains("raichu"));
+        REQUIRE(m1["raichu"] == 43);
+
+        REQUIRE(m.size() == 2);
+        REQUIRE(m.bucket_count() == 8);
+        REQUIRE(m.contains("raichu"));
+        REQUIRE(m["raichu"] == 43);
+    }
+
+    SECTION("copy constructor / alloc")
+    {
+        // TODO: test that alloc is exchanged correctly.
+        jg::dense_hash_map<std::string, int> m1{m};
+        REQUIRE(m1.size() == 2);
+        REQUIRE(m1.bucket_count() == 8);
+        REQUIRE(m1.contains("raichu"));
+        REQUIRE(m1["raichu"] == 43);
+    }
+}
+
 TEST_CASE("clear")
 {
     jg::dense_hash_map<std::string, int> m;
