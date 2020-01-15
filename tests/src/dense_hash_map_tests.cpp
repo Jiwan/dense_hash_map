@@ -5,6 +5,7 @@
 #include "jg/details/type_traits.hpp"
 
 #include <algorithm>
+#include <memory_resource>
 #include <string>
 #include <vector>
 
@@ -142,6 +143,25 @@ constexpr auto is_valid(UnnamedType&&)
     return is_valid_container<UnnamedType>();
 }
 
+struct counting_pmr_resource : std::pmr::memory_resource
+{
+    counting_pmr_resource(int* alloc_counter) : alloc_counter(alloc_counter) {}
+
+    void* do_allocate(std::size_t bytes, std::size_t alignment) override {
+        ++alloc_counter;
+        return std::pmr::get_default_resource()->allocate(bytes, alignment);
+    }
+
+    void do_deallocate(void* p, std::size_t bytes, std::size_t alignment) override {
+        std::pmr::get_default_resource()->deallocate(p, bytes, alignment);
+    }
+
+    bool do_is_equal(const std::pmr::memory_resource&) const noexcept override {
+        return true;
+    }
+
+    int* alloc_counter = nullptr;
+};
 } // namespace
 
 namespace std
@@ -156,16 +176,39 @@ struct hash<increase_counter_on_copy_or_move>
 };
 } // namespace std
 
+TEST_CASE("member types")
+{
+    jg::dense_hash_map<std::string, int> m; 
+
+    REQUIRE(std::is_same_v<decltype(m)::key_type, std::string>);
+    REQUIRE(std::is_same_v<decltype(m)::mapped_type, int>);
+    REQUIRE(std::is_same_v<decltype(m)::value_type, std::pair<const std::string, int>>);
+    REQUIRE(sizeof(decltype(m)::size_type) > 1);
+    REQUIRE(sizeof(decltype(m)::difference_type) > 1);
+    REQUIRE(std::is_same_v<decltype(m)::hasher, std::hash<std::string>>);
+    REQUIRE(std::is_same_v<decltype(m)::key_equal, std::equal_to<std::string>>);
+    REQUIRE(std::is_same_v<decltype(m)::allocator_type, std::allocator<std::pair<const std::string, int>>>);
+    REQUIRE(std::is_same_v<decltype(m)::reference, std::pair<const std::string, int>&>);
+    REQUIRE(std::is_same_v<decltype(m)::const_reference, const std::pair<const std::string, int>&>);
+    REQUIRE(std::is_pointer_v<decltype(m)::pointer>);
+    REQUIRE(std::is_pointer_v<decltype(m)::const_pointer>);
+    REQUIRE(std::is_same_v<decltype(m)::iterator, decltype(m.begin())>);
+    REQUIRE(std::is_same_v<decltype(m)::const_iterator, decltype(m.cbegin())>);
+    REQUIRE(std::is_same_v<decltype(m)::local_iterator, decltype(m.begin(0u))>);
+    REQUIRE(std::is_same_v<decltype(m)::const_local_iterator, decltype(m.cbegin(0u))>);
+}
+
 TEST_CASE("constructors")
 {
     jg::dense_hash_map<std::string, int> m = {{"pikachu", 40}, {"raichu", 43}};
 
     SECTION("empty")
     {
-        REQUIRE(m.size() == 2);
-        REQUIRE(m.bucket_count() == 8);
-        REQUIRE(m.contains("pikachu"));
-        REQUIRE(m["pikachu"] == 40);
+        REQUIRE(std::is_nothrow_default_constructible_v<decltype(m)>);
+
+        jg::dense_hash_map<std::string, int> m1;
+        REQUIRE(m1.size() == 0);
+        REQUIRE(m1.bucket_count() == 8);
     }
 
     SECTION("bucket_count / hash / equal / alloc")
@@ -226,7 +269,7 @@ TEST_CASE("constructors")
         REQUIRE(m3.size() == 2);
         REQUIRE(m3.bucket_count() == 32);
         REQUIRE(m3.contains("raichu"));
-        REQUIRE(m3["pikachu"] == 43);
+        REQUIRE(m3["raichu"] == 43);
 
         jg::dense_hash_map<std::string, int> m4{m.begin(), m.end(), 6, std::hash<std::string>{}, std::equal_to<std::string>{}};
         REQUIRE(m4.size() == 2);
@@ -275,15 +318,171 @@ TEST_CASE("constructors")
 
     SECTION("copy constructor / alloc")
     {
-        // TODO: test that alloc is exchanged correctly.
-        jg::dense_hash_map<std::string, int> m1{m};
+        jg::dense_hash_map<std::string, int> m1{m, std::allocator<std::pair<const std::string, int>>{}};
         REQUIRE(m1.size() == 2);
         REQUIRE(m1.bucket_count() == 8);
         REQUIRE(m1.contains("raichu"));
         REQUIRE(m1["raichu"] == 43);
     }
+
+    SECTION("move constructor")
+    {
+        jg::dense_hash_map<std::string, int> m1{std::move(m)};
+        REQUIRE(m1.size() == 2);
+        REQUIRE(m1.bucket_count() == 8);
+        REQUIRE(m1.contains("raichu"));
+        REQUIRE(m1["raichu"] == 43);
+
+        REQUIRE(m.size() == 0);
+        REQUIRE(m.bucket_count() == 0);
+
+        // Moved dense_hash_map usable after clear.
+        m.clear();
+        REQUIRE(m.bucket_count() == 8);
+        REQUIRE(m.size() == 0);
+        m["spiderman"] = 43;
+        REQUIRE(m.contains("spiderman"));
+    }
+
+    SECTION("move constructor alloc")
+    {
+        jg::dense_hash_map<std::string, int> m1{std::move(m), std::allocator<std::pair<const std::string, int>>{}};
+        REQUIRE(m1.size() == 2);
+        REQUIRE(m1.bucket_count() == 8);
+        REQUIRE(m1.contains("raichu"));
+        REQUIRE(m1["raichu"] == 43);
+
+        REQUIRE(m.size() == 0);
+        REQUIRE(m.bucket_count() == 0);
+    }
+
+    SECTION("initializer_list / bucket_count / hash / equal / alloc")
+    {
+        jg::dense_hash_map<std::string, int> m1{{{"pikachu", 40}, {"raichu", 43}}};
+        REQUIRE(m1.size() == 2);
+        REQUIRE(m1.bucket_count() == 8);
+        REQUIRE(m1.contains("pikachu"));
+        REQUIRE(m1["pikachu"] == 40);
+
+        jg::dense_hash_map<std::string, int> m2{{{"pikachu", 40}, {"raichu", 43}}, 32};
+        REQUIRE(m2.size() == 2);
+        REQUIRE(m2.bucket_count() == 32);
+        REQUIRE(m2.contains("pikachu"));
+        REQUIRE(m2["pikachu"] == 40);
+
+        jg::dense_hash_map<std::string, int> m3{{{"pikachu", 40}, {"raichu", 43}}, 32, std::hash<std::string>{}};
+        REQUIRE(m3.size() == 2);
+        REQUIRE(m3.bucket_count() == 32);
+        REQUIRE(m3.contains("raichu"));
+        REQUIRE(m3["raichu"] == 43);
+
+        jg::dense_hash_map<std::string, int> m4{{{"pikachu", 40}, {"raichu", 43}}, 6, std::hash<std::string>{}, std::equal_to<std::string>{}};
+        REQUIRE(m4.size() == 2);
+        REQUIRE(m4.bucket_count() == 8);
+        REQUIRE(m4.contains("pikachu"));
+        REQUIRE(m4["pikachu"] == 40);
+
+        jg::dense_hash_map<std::string, int> m5{{{"pikachu", 40}, {"raichu", 43}}, 0, std::hash<std::string>{}, std::equal_to<std::string>{}, std::allocator<std::pair<const std::string, int>>{}};
+        REQUIRE(m5.size() == 2);
+        REQUIRE(m5.bucket_count() == 8);
+        REQUIRE(m5.contains("pikachu"));
+        REQUIRE(m5["pikachu"] == 40);
+    }
+
+    SECTION("initializer_list / bucket_count / alloc")
+    {
+        jg::dense_hash_map<std::string, int> m1{{{"pikachu", 40}, {"raichu", 43}}, 8, std::allocator<std::pair<const std::string, int>>{}};
+        REQUIRE(m1.size() == 2);
+        REQUIRE(m1.bucket_count() == 8);
+        REQUIRE(m1.contains("raichu"));
+        REQUIRE(m1["raichu"] == 43);
+    }
+
+    SECTION("initializer_list / bucket_count / hash / alloc")
+    {
+        jg::dense_hash_map<std::string, int> m1{{{"pikachu", 40}, {"raichu", 43}}, 8, std::hash<std::string>{}, std::allocator<std::pair<const std::string, int>>{}};
+        REQUIRE(m1.size() == 2);
+        REQUIRE(m1.bucket_count() == 8);
+        REQUIRE(m1.contains("pikachu"));
+        REQUIRE(m1["pikachu"] == 40);
+    }
 }
 
+TEST_CASE("assignment operator")
+{
+    jg::dense_hash_map<std::string, int> m1 = {{"pikachu", 40}, {"raichu", 43}};
+    jg::dense_hash_map<std::string, int> m2 = {{"picsou", 13}};
+
+    SECTION("copy")
+    {
+        m2 = m1;
+        REQUIRE(m2.size() == 2);
+        REQUIRE(m2.bucket_count() == 8);
+        REQUIRE(m2.contains("pikachu"));
+        REQUIRE(m2["pikachu"] == 40);
+        REQUIRE(!m2.contains("picsou"));
+    }
+
+    SECTION("move")
+    {
+        REQUIRE(std::is_nothrow_move_assignable_v<decltype(m2)>);
+
+        m2 = std::move(m1);
+        REQUIRE(m2.size() == 2);
+        REQUIRE(m2.bucket_count() == 8);
+        REQUIRE(m2.contains("pikachu"));
+        REQUIRE(m2["pikachu"] == 40);
+        REQUIRE(!m2.contains("picsou"));
+
+        REQUIRE(m1.size() == 0);
+        REQUIRE(m1.bucket_count() == 0);
+
+        // Moved dense_hash_map usable after clear.
+        m1.clear();
+        REQUIRE(m1.bucket_count() == 8);
+        REQUIRE(m1.size() == 0);
+        m1["spiderman"] = 43;
+        REQUIRE(m1.contains("spiderman"));
+    }
+
+    SECTION("assign initializer_list")
+    {
+        m2 = {{"pikachu", 40}, {"raichu", 43}};
+        REQUIRE(m2.size() == 2);
+        REQUIRE(m2.bucket_count() == 8);
+        REQUIRE(m2.contains("pikachu"));
+        REQUIRE(m2["pikachu"] == 40);
+        REQUIRE(!m2.contains("picsou"));
+    }
+}
+
+TEST_CASE("iterator")
+{
+    jg::dense_hash_map<std::string, int> m = {
+        {"pierre", 1}, {"paul", 2}, {"jacques", 3}};
+
+    std::vector<std::pair<const std::string, int>> expected = {
+        {"pierre", 1}, {"paul", 2}, {"jacques", 3}};
+
+    SECTION("begin/end")
+    {
+        static_assert(std::is_same_v<decltype((m.begin()->second)), int&>);
+        REQUIRE(std::equal(expected.begin(), expected.end(), m.begin(), m.end()));
+    }
+
+    SECTION("const begin/end")
+    {
+        const auto& m2 = m;
+        static_assert(std::is_same_v<decltype((m2.begin()->second)), const int&>);
+        REQUIRE(std::equal(expected.begin(), expected.end(), m2.begin(), m2.end()));
+    }
+
+    SECTION("cbegin/cend")
+    {
+        static_assert(std::is_same_v<decltype((m.cbegin()->second)), const int&>);
+        REQUIRE(std::equal(expected.cbegin(), expected.cend(), m.cbegin(), m.cend()));
+    }
+}
 TEST_CASE("clear")
 {
     jg::dense_hash_map<std::string, int> m;
@@ -1151,6 +1350,8 @@ TEST_CASE("swap", "[swap]")
 
     SECTION("std::swap")
     {
+        REQUIRE(std::is_nothrow_swappable_v<decltype(m1)>);
+
         std::swap(m1, m2);
 
         REQUIRE(m1.size() == 1);
@@ -1632,6 +1833,22 @@ TEST_CASE("deduction guides")
 
     jg::dense_hash_map m8({std::pair{"foo", 2}, {"bar", 3}}, 42u, collision_hasher{}, named_allocator<std::string>{"test"});
     REQUIRE(std::is_same_v<decltype(m7), jg::dense_hash_map<const char*, int, std::hash<const char*>, std::equal_to<const char*>, named_allocator<std::string>>>);
+}
+
+TEST_CASE("allocator propagation") {
+    int counter = 0;
+
+    auto r = counting_pmr_resource(&counter);
+
+    jg::pmr::dense_hash_map<std::pmr::string, std::pmr::string> s(8u, &r);
+    s.reserve(100);
+
+    int old_counter_value = counter;
+    REQUIRE(counter >= 1);
+
+    s.try_emplace("a_super_long_string_to_disable_short_string_optimization", "a_super_long_string_to_disable_short_string_optimization");
+
+    REQUIRE((counter - old_counter_value) == 2);
 }
 
 TEST_CASE("Move only types") {}

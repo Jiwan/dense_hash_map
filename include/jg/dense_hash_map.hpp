@@ -125,8 +125,29 @@ private:
     using GrowthPolicy::compute_closest_capacity;
     using GrowthPolicy::compute_index;
     using GrowthPolicy::minimum_capacity;
+    using deduced_key_equal = typename details::key_equal<Hash, Pred, Key>::type;
 
-    static constexpr node_index_type node_end_index = details::node_end_index<Key, T>;
+    static inline constexpr node_index_type node_end_index = details::node_end_index<Key, T>;
+
+    static inline constexpr bool is_nothrow_move_constructible = std::allocator_traits<Allocator>::is_always_equal::value && 
+        std::is_nothrow_move_constructible_v<Hash> && 
+        std::is_nothrow_move_constructible_v<deduced_key_equal> &&
+        std::is_nothrow_move_constructible_v<entries_container_type> && 
+        std::is_nothrow_move_constructible_v<buckets_container_type>;
+    static inline constexpr bool is_nothrow_move_assignable = std::allocator_traits<Allocator>::is_always_equal::value && 
+        std::is_nothrow_move_assignable_v<Hash> && 
+        std::is_nothrow_move_assignable_v<deduced_key_equal> &&
+        std::is_nothrow_move_assignable_v<entries_container_type> && 
+        std::is_nothrow_move_assignable_v<buckets_container_type>;
+    static inline constexpr bool is_nothrow_swappable = std::is_nothrow_swappable_v<buckets_container_type> && 
+        std::is_nothrow_swappable_v<entries_container_type> && 
+        std::allocator_traits<Allocator>::is_always_equal::value &&
+        std::is_nothrow_swappable_v<Hash> && 
+        std::is_nothrow_swappable_v<deduced_key_equal>;
+    static inline constexpr bool is_nothrow_default_constructible = std::is_nothrow_default_constructible_v<buckets_container_type> && 
+        std::is_nothrow_default_constructible_v<entries_container_type> && 
+        std::is_nothrow_default_constructible_v<Hash> && 
+        std::is_nothrow_default_constructible_v<deduced_key_equal>;
 
 public:
     using key_type = Key;
@@ -135,10 +156,10 @@ public:
     using size_type = entries_size_type;
     using difference_type = typename entries_container_type::difference_type;
     using hasher = Hash;
-    using key_equal = typename details::key_equal<Hash, Pred, Key>::type;
+    using key_equal = deduced_key_equal;
     using allocator_type = Allocator;
     using reference = value_type&;
-    using const_reference = value_type&;
+    using const_reference = const value_type&;
     using pointer = typename std::allocator_traits<allocator_type>::pointer;
     using const_pointer = typename std::allocator_traits<allocator_type>::const_pointer;
     using iterator = details::dense_hash_map_iterator<Key, T, entries_container_type, false, true>;
@@ -146,7 +167,8 @@ public:
     using local_iterator = details::bucket_iterator<Key, T, entries_container_type, false, true>;
     using const_local_iterator = details::bucket_iterator<Key, T, entries_container_type, true, true>;
 
-    constexpr dense_hash_map() : dense_hash_map(minimum_capacity()) {}
+    constexpr dense_hash_map() noexcept(is_nothrow_default_constructible)
+        : dense_hash_map(minimum_capacity()) {}
 
     constexpr explicit dense_hash_map(
         size_type bucket_count, const Hash& hash = Hash(), const key_equal& equal = key_equal(),
@@ -192,23 +214,23 @@ public:
         : dense_hash_map(first, last, bucket_count, hash, key_equal(), alloc)
     {}
 
-    constexpr dense_hash_map(const dense_hash_map& other) /* TODO: noexcept */
+    constexpr dense_hash_map(const dense_hash_map& other)
         : dense_hash_map(
               other, std::allocator_traits<allocator_type>::select_on_container_copy_construction(
                          other.get_allocator()))
     {}
 
     constexpr dense_hash_map(
-        const dense_hash_map& other, const allocator_type& alloc) /* TODO: noexcept */
+        const dense_hash_map& other, const allocator_type& alloc)
         : hash_(other.hash_)
         , key_equal_(other.key_equal_)
         , buckets_(other.buckets_, alloc)
         , nodes_(other.nodes_, alloc)
     {}
 
-    constexpr dense_hash_map(dense_hash_map&& other) = default; /* TODO: noexcept */
-    constexpr dense_hash_map(
-        dense_hash_map&& other, const allocator_type& alloc) /* TODO: noexcept */
+    constexpr dense_hash_map(dense_hash_map&& other) noexcept(is_nothrow_move_constructible) = default; 
+
+    constexpr dense_hash_map(dense_hash_map&& other, const allocator_type& alloc) 
         : hash_(std::move(other.hash_))
         , key_equal_(std::move(other.key_equal_))
         , buckets_(std::move(other.buckets_), alloc)
@@ -234,6 +256,15 @@ public:
     {}
 
     ~dense_hash_map() = default;
+
+    constexpr dense_hash_map& operator=(const dense_hash_map& other) = default;
+    constexpr dense_hash_map& operator=( dense_hash_map&& other ) noexcept(is_nothrow_move_assignable) = default;
+    constexpr dense_hash_map& operator=( std::initializer_list<value_type> ilist )
+    {
+        clear();
+        insert(ilist.begin(), ilist.end());
+        return *this;
+    }
 
     constexpr auto get_allocator() const -> allocator_type { return buckets_.get_allocator(); }
 
@@ -504,10 +535,7 @@ public:
         return 1;
     }
 
-    void swap(dense_hash_map& other) noexcept(
-        std::is_nothrow_swappable_v<buckets_container_type>&& std::is_nothrow_swappable_v<
-            entries_container_type>&& std::allocator_traits<Allocator>::is_always_equal::value&&
-            std::is_nothrow_swappable_v<Hash>&& std::is_nothrow_swappable_v<key_equal>)
+    void swap(dense_hash_map& other) noexcept(is_nothrow_swappable)
     {
         using std::swap;
         swap(buckets_, other.buckets_);
@@ -935,6 +963,13 @@ template <
     >
 dense_hash_map(std::initializer_list<std::pair<Key, T>>, details::node_index_t<Key, T>, Hash, Alloc)
     ->dense_hash_map<Key, T, Hash, std::equal_to<Key>, Alloc>;
+
+namespace pmr
+{
+template <class Key, class T, class Hash = std::hash<Key>, class Pred = std::equal_to<Key>,
+          class GrowthPolicy = details::power_of_two_growth_policy>
+    using dense_hash_map = dense_hash_map<Key, T, Hash, Pred, std::pmr::polymorphic_allocator<std::pair<const Key,T>>, GrowthPolicy>;
+} // namespace pmr
 
 } // namespace jg
 
