@@ -1,14 +1,15 @@
 - Exception free.
-- Start with size 0 for buckets.
+- double check everything.
 - Unit-tests for all functions and stuff.
 - Move only types...
 - Slap constexpr as much as possible.
-- noexcept as much as possible!
-- Test allocator support.
 - Pass test with ASAN and UBSAN.
 - Benchmarks.
 - Setup travis.
 - Doc.
+- Start with size 0 for buckets (verify if worth it).
 
 Done:
 - Disable copy-constructor for pair types that do not support them.
+- Test allocator support.
+- noexcept as much as possible!
