@@ -29,10 +29,11 @@ union key_value_pair
     {}
 
     template <class Allocator, class... Args>
-    key_value_pair(std::allocator_arg_t, Allocator&& alloc, Args&&... args)
+    key_value_pair(std::allocator_arg_t, const Allocator& alloc, Args&&... args)
     {
-        std::allocator_traits<std::remove_cvref_t<Allocator>>::construct(
-            std::forward<Allocator>(alloc), &non_const_, std::forward<Args>(args)...);
+        auto alloc_copy = alloc;
+        std::allocator_traits<Allocator>::construct(
+            alloc_copy, &non_const_, std::forward<Args>(args)...);
     }
 
     constexpr key_value_pair(const key_value_pair& other) noexcept(
@@ -137,9 +138,19 @@ struct node : disable_copy_constructor<Pair>,
     {}
 
     template <class Allocator, class... Args>
-    node(std::allocator_arg_t, Allocator&& alloc, node_index_t<Key, T> next, Args&&... args)
-        : next(next)
-        , pair(std::allocator_arg, std::forward<Allocator>(alloc), std::forward<Args>(args)...)
+    node(std::allocator_arg_t, const Allocator& alloc, node_index_t<Key, T> next, Args&&... args)
+        : next(next), pair(std::allocator_arg, alloc, std::forward<Args>(args)...)
+    {}
+
+    template <class Allocator, class Node>
+    node(std::allocator_arg_t, const Allocator& alloc, const Node& other)
+        : next(other.next), pair(std::allocator_arg, alloc, other.pair.non_const_)
+    {}
+
+    template <class Allocator, class Node>
+    node(std::allocator_arg_t, const Allocator& alloc, Node&& other)
+        : next(std::move(other.next))
+        , pair(std::allocator_arg, alloc, std::move(other.pair.non_const_))
     {}
 
     node_index_t<Key, T> next = node_end_index<Key, T>;

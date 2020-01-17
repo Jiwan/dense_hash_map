@@ -12,8 +12,7 @@ namespace jg::details
 template <class Key, class T, class Container, bool isConst, bool projectToConstKey>
 class bucket_iterator
 {
-    using nodes_container_type =
-        std::conditional_t<isConst, const Container, Container>;
+    using nodes_container_type = std::conditional_t<isConst, const Container, Container>;
     using node_index_type = node_index_t<Key, T>;
     using projected_type = std::pair<std::conditional_t<projectToConstKey, const Key, Key>, T>;
 

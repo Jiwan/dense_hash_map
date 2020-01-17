@@ -148,7 +148,7 @@ struct counting_pmr_resource : std::pmr::memory_resource
     counting_pmr_resource(int* alloc_counter) : alloc_counter(alloc_counter) {}
 
     void* do_allocate(std::size_t bytes, std::size_t alignment) override {
-        ++alloc_counter;
+        ++(*alloc_counter);
         return std::pmr::get_default_resource()->allocate(bytes, alignment);
     }
 
@@ -284,6 +284,15 @@ TEST_CASE("constructors")
         REQUIRE(m5["pikachu"] == 40);
     }
 
+    SECTION("input iterator / alloc")
+    {
+        jg::dense_hash_map<std::string, int> m1{m.begin(), m.end(), std::allocator<std::pair<const std::string, int>>{}};
+        REQUIRE(m1.size() == 2);
+        REQUIRE(m1.bucket_count() == 8);
+        REQUIRE(m1.contains("raichu"));
+        REQUIRE(m1["raichu"] == 43);
+    }
+
     SECTION("input iterator / bucket_count / alloc")
     {
         jg::dense_hash_map<std::string, int> m1{m.begin(), m.end(), 8, std::allocator<std::pair<const std::string, int>>{}};
@@ -387,6 +396,15 @@ TEST_CASE("constructors")
         REQUIRE(m5.bucket_count() == 8);
         REQUIRE(m5.contains("pikachu"));
         REQUIRE(m5["pikachu"] == 40);
+    }
+
+    SECTION("initializer_list / alloc")
+    {
+        jg::dense_hash_map<std::string, int> m1{{{"pikachu", 40}, {"raichu", 43}}, std::allocator<std::pair<const std::string, int>>{}};
+        REQUIRE(m1.size() == 2);
+        REQUIRE(m1.bucket_count() == 8);
+        REQUIRE(m1.contains("raichu"));
+        REQUIRE(m1["raichu"] == 43);
     }
 
     SECTION("initializer_list / bucket_count / alloc")
@@ -1817,9 +1835,9 @@ TEST_CASE("deduction guides")
     jg::dense_hash_map m3(m.begin(), m.end(), 42u, named_allocator<const char*>{"test"});
     REQUIRE(std::is_same_v<decltype(m3), jg::dense_hash_map<std::string, int, std::hash<std::string>, std::equal_to<std::string>, named_allocator<const char*>>>);
 
-    // Rule 4 is bunker...
-    //jg::dense_hash_map m4(m.begin(), m.end(), named_allocator<const char*>{"test"});
-    //REQUIRE(std::is_same_v<decltype(m4), jg::dense_hash_map<std::string, int, std::hash<std::string>, std::equal_to<std::string>, named_allocator<const char*>>>);
+    // Rule 4 works thanks to https://cplusplus.github.io/LWG/issue2713
+    jg::dense_hash_map m4(m.begin(), m.end(), named_allocator<const char*>{"test"});
+    REQUIRE(std::is_same_v<decltype(m4), jg::dense_hash_map<std::string, int, std::hash<std::string>, std::equal_to<std::string>, named_allocator<const char*>>>);
 
     jg::dense_hash_map m5(m.begin(), m.end(), 42u, collision_hasher{}, named_allocator<const char*>{"test"});
     REQUIRE(std::is_same_v<decltype(m5), jg::dense_hash_map<std::string, int, collision_hasher, std::equal_to<std::string>, named_allocator<const char*>>>);
@@ -1827,7 +1845,7 @@ TEST_CASE("deduction guides")
     jg::dense_hash_map m6({std::pair{"foo", 2}, {"bar", 3}}, 42u, named_allocator<std::string>{"test"});
     REQUIRE(std::is_same_v<decltype(m6), jg::dense_hash_map<const char*, int, std::hash<const char*>, std::equal_to<const char*>, named_allocator<std::string>>>);
 
-    // Rule 7 is also bunker... The test below is actually relying on the copy-constructor + allocator.
+    // Rule 7 also works thanks to https://cplusplus.github.io/LWG/issue2713
     jg::dense_hash_map m7({std::pair{"foo", 2}, {"bar", 3}}, named_allocator<std::string>{"test"});
     REQUIRE(std::is_same_v<decltype(m7), jg::dense_hash_map<const char*, int, std::hash<const char*>, std::equal_to<const char*>, named_allocator<std::string>>>);
 
@@ -1837,20 +1855,42 @@ TEST_CASE("deduction guides")
 
 TEST_CASE("allocator propagation") {
     int counter = 0;
-
     auto r = counting_pmr_resource(&counter);
 
-    jg::pmr::dense_hash_map<std::pmr::string, std::pmr::string> s(8u, &r);
-    s.reserve(100);
+    jg::pmr::dense_hash_map<std::pmr::string, std::pmr::string> m(8u, &r);
+    m.reserve(100);
 
-    int old_counter_value = counter;
-    REQUIRE(counter >= 1);
+    int old_counter_value = counter; // buckets_ creation + reserve of buckets_ and nodes_ == 3 allocations
+    REQUIRE(counter >= 3);
 
-    s.try_emplace("a_super_long_string_to_disable_short_string_optimization", "a_super_long_string_to_disable_short_string_optimization");
+    SECTION("nested other container")
+    {
+        m.try_emplace("a_super_long_string_to_disable_short_string_optimization", "a_super_long_string_to_disable_short_string_optimization");
 
-    REQUIRE((counter - old_counter_value) == 2);
+        REQUIRE((counter - old_counter_value) == 2); // two strings == 2 allocations.
+        REQUIRE(m["a_super_long_string_to_disable_short_string_optimization"] == "a_super_long_string_to_disable_short_string_optimization");
+
+        std::pmr::string s("lalalalalahihohohohohohohohohoho", &r);
+
+        m.insert_or_assign("a_super_long_string_to_disable_short_string_optimization", std::move(s));
+        REQUIRE(s.empty());
+    }
+
+    SECTION("nested dense_hash_map")
+    {
+        jg::pmr::dense_hash_map<std::string, jg::pmr::dense_hash_map<std::pmr::string, std::pmr::string>> m2(8u, &r); // one alloc
+        m2.reserve(100); // 2 allocs for reserve of buckets_ and nodes_
+
+        m2.try_emplace("test", m); // 1 alloc for the copy of buckets_ from m. nodes_ is not copied as empty... so no allocation.
+
+        REQUIRE((counter - old_counter_value) == 4); // string + dense_hash_map == 2 allocations.
+    }
+
 }
 
-TEST_CASE("Move only types") {}
+TEST_CASE("Move only types")
+{
+
+}
 
 TEST_CASE("growth policy") {}
