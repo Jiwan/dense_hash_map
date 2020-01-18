@@ -1955,6 +1955,117 @@ TEST_CASE("allocator propagation")
     }
 }
 
-TEST_CASE("Move only types") {}
+TEST_CASE("Move only types")
+{
+    struct key
+    {
+        std::string value;
 
-TEST_CASE("growth policy") {}
+        key (std::string value)
+            : value(std::move(value))
+        {
+        }
+
+        key(const key& other) = delete;
+
+        key(key&& other)
+            : value(std::move(other.value))
+        {
+        }
+
+        key& operator=(const key& other) = default;
+
+        key& operator=(key&& other) {
+            value = std::move(other.value);
+            return *this;
+        }
+        
+        bool operator==(const key& other) const
+        {
+            return other.value == value;
+        }
+    };
+
+    struct key_hasher
+    {
+        auto operator()(const key& k) const noexcept -> std::size_t
+        {
+            return std::hash<std::string>()(k.value);
+        }
+    };
+
+    jg::dense_hash_map<key, std::unique_ptr<std::string>, key_hasher> m{};
+
+    m.emplace(std::pair{key{"test1"}, std::make_unique<std::string>("1")});
+    m.try_emplace(key{"test2"}, std::make_unique<std::string>("2"));
+
+    REQUIRE(m.contains(key{"test1"}));
+    auto it = m.find(key{"test1"});
+    REQUIRE(it != m.end());
+    REQUIRE(*it->second == "1");
+    REQUIRE(m.contains(key{"test2"}));
+
+    REQUIRE(m[key{"test2"}]);
+
+    m[key{"test3"}] = std::make_unique<std::string>("3");
+    it = m.find(key{"test3"});
+    REQUIRE(it != m.end());
+    REQUIRE(*it->second == "3");
+
+    m[key{"test1"}] = std::make_unique<std::string>("11");
+    it = m.find(key{"test1"});
+    REQUIRE(*it->second == "11");
+
+    m.erase(key{"test3"});
+
+    REQUIRE_FALSE(m.contains(key{"test3"}));
+
+    jg::dense_hash_map<key, std::unique_ptr<std::string>, key_hasher> m2{};
+    m2 = std::move(m);
+
+    REQUIRE(m2.size() == 2);
+    REQUIRE(m.size() == 0);
+    REQUIRE(m != m2);
+
+    std::swap(m2, m);
+    REQUIRE(m2.size() == 0);
+    REQUIRE(m.size() == 2);
+    REQUIRE(m != m2);
+}
+
+TEST_CASE("growth policy")
+{
+    struct dumb_growth_policy
+    {
+        static constexpr auto compute_index(std::size_t hash, std::size_t capacity) -> std::size_t
+        {
+            return hash % capacity;
+        }
+
+        static constexpr auto compute_closest_capacity(std::size_t min_capacity) -> std::size_t
+        {
+            return min_capacity;
+        }
+
+        static constexpr auto minimum_capacity() -> std::size_t { return 2u; }
+    };
+
+    jg::dense_hash_map<
+        int, 
+        int, 
+        std::hash<int>, 
+        std::equal_to<int>, 
+        std::allocator<std::pair<const int, int>>, 
+        dumb_growth_policy
+    > m{};
+
+    REQUIRE(m.bucket_count() == 2);
+
+    m.try_emplace(1, 1);
+    m.try_emplace(2, 2);
+
+    REQUIRE(m.bucket_count() == 4);
+
+    m.rehash(500);
+    REQUIRE(m.bucket_count() == 500);
+}

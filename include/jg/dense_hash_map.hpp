@@ -468,7 +468,7 @@ public:
 
     void max_load_factor(float ml)
     {
-        assert(ml > 0.0f);
+        assert(ml > 0.0f && "The max load factor must be greater than 0.0f.");
         max_load_factor_ = ml;
         rehash(8);
     }
@@ -479,6 +479,8 @@ public:
         count = std::max(count, static_cast<size_type>(size() / max_load_factor()));
 
         count = compute_closest_capacity(count);
+
+        assert(count > 0 && "The computed rehash size must be greater than 0.");
 
         if (count == buckets_.size())
         {
