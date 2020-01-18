@@ -277,10 +277,10 @@ public:
 
     ~dense_hash_map() = default;
 
-    constexpr dense_hash_map& operator=(const dense_hash_map& other) = default;
-    constexpr dense_hash_map&
-    operator=(dense_hash_map&& other) noexcept(is_nothrow_move_assignable) = default;
-    constexpr dense_hash_map& operator=(std::initializer_list<value_type> ilist)
+    constexpr auto operator=(const dense_hash_map& other) -> dense_hash_map& = default;
+    constexpr auto operator=(dense_hash_map&& other) noexcept(is_nothrow_move_assignable)
+        -> dense_hash_map& = default;
+    constexpr auto operator=(std::initializer_list<value_type> ilist) -> dense_hash_map&
     {
         clear();
         insert(ilist.begin(), ilist.end());

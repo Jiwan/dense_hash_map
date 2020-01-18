@@ -147,7 +147,7 @@ struct counting_pmr_resource : std::pmr::memory_resource
 {
     counting_pmr_resource(int* alloc_counter) : alloc_counter(alloc_counter) {}
 
-    void* do_allocate(std::size_t bytes, std::size_t alignment) override
+    auto do_allocate(std::size_t bytes, std::size_t alignment) -> void* override
     {
         ++(*alloc_counter);
         return std::pmr::get_default_resource()->allocate(bytes, alignment);
@@ -158,7 +158,10 @@ struct counting_pmr_resource : std::pmr::memory_resource
         std::pmr::get_default_resource()->deallocate(p, bytes, alignment);
     }
 
-    bool do_is_equal(const std::pmr::memory_resource&) const noexcept override { return true; }
+    auto do_is_equal(const std::pmr::memory_resource&) const noexcept -> bool override
+    {
+        return true;
+    }
 
     int* alloc_counter = nullptr;
 };
@@ -1961,29 +1964,21 @@ TEST_CASE("Move only types")
     {
         std::string value;
 
-        key (std::string value)
-            : value(std::move(value))
-        {
-        }
+        key(std::string value) : value(std::move(value)) {}
 
         key(const key& other) = delete;
 
-        key(key&& other)
-            : value(std::move(other.value))
+        key(key&& other) : value(std::move(other.value)) {}
+
+        auto operator=(const key& other) -> key& = default;
+
+        auto operator=(key&& other) -> key&
         {
-        }
-
-        key& operator=(const key& other) = default;
-
-        key& operator=(key&& other) {
             value = std::move(other.value);
             return *this;
         }
-        
-        bool operator==(const key& other) const
-        {
-            return other.value == value;
-        }
+
+        auto operator==(const key& other) const -> bool { return other.value == value; }
     };
 
     struct key_hasher
@@ -2051,13 +2046,9 @@ TEST_CASE("growth policy")
     };
 
     jg::dense_hash_map<
-        int, 
-        int, 
-        std::hash<int>, 
-        std::equal_to<int>, 
-        std::allocator<std::pair<const int, int>>, 
-        dumb_growth_policy
-    > m{};
+        int, int, std::hash<int>, std::equal_to<int>, std::allocator<std::pair<const int, int>>,
+        dumb_growth_policy>
+        m{};
 
     REQUIRE(m.bucket_count() == 2);
 
