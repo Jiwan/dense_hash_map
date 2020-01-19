@@ -1,8 +1,3 @@
-- Exception free.
-- double check everything.
-- Unit-tests for all functions and stuff.
-- Move only types...
-- Slap constexpr as much as possible.
 - Pass test with ASAN and UBSAN.
 - Benchmarks.
 - Setup travis.
@@ -13,3 +8,8 @@ Done:
 - Disable copy-constructor for pair types that do not support them.
 - Test allocator support.
 - noexcept as much as possible!
+- Unit-tests for all functions and stuff.
+- Move only types...
+- Exception free.
+- double check everything.
+- Slap constexpr as much as possible.
