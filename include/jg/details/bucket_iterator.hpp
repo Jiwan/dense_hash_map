@@ -23,10 +23,10 @@ public:
     using reference = value_type&;
     using pointer = value_type*;
 
-    bucket_iterator() = default;
-    bucket_iterator(nodes_container_type& nodes_container) : nodes_container(&nodes_container) {}
+    constexpr bucket_iterator() = default;
+    constexpr explicit bucket_iterator(nodes_container_type& nodes_container) : nodes_container(&nodes_container) {}
 
-    bucket_iterator(node_index_type index, nodes_container_type& nodes_container)
+    constexpr bucket_iterator(node_index_type index, nodes_container_type& nodes_container)
         : nodes_container(&nodes_container), current_node_index_(index)
     {}
 
@@ -67,7 +67,7 @@ public:
         }
     }
 
-    auto current_node_index() const -> node_index_type { return current_node_index_; }
+    constexpr auto current_node_index() const -> node_index_type { return current_node_index_; }
 
 private:
     nodes_container_type* nodes_container;

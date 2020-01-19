@@ -123,7 +123,7 @@ public:
         return {sub_iterator_ - n};
     }
 
-    auto sub_iterator() const -> const sub_iterator_type& { return sub_iterator_; }
+    constexpr auto sub_iterator() const -> const sub_iterator_type& { return sub_iterator_; }
 
 private:
     sub_iterator_type sub_iterator_;

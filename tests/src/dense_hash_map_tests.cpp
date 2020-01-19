@@ -1465,7 +1465,6 @@ TEST_CASE("at")
 {
     jg::dense_hash_map<std::string, int> m1 = {{"batman", 42}, {"robin", 666}};
 
-    // TODO: exception free.
     SECTION("non-const")
     {
         static_assert(std::is_same_v<decltype(m1.at("")), int&>);
@@ -1475,7 +1474,9 @@ TEST_CASE("at")
 
         REQUIRE(m1.at("batman") == 1337);
 
+#if !JG_NO_EXCEPTION
         REQUIRE_THROWS(m1.at("winnie"));
+#endif
     }
 
     SECTION("const")
@@ -1483,7 +1484,10 @@ TEST_CASE("at")
         const auto& m2 = m1;
         static_assert(std::is_same_v<decltype(m2.at("")), const int&>);
         REQUIRE(m2.at("batman") == 42);
+
+#if !JG_NO_EXCEPTION
         REQUIRE_THROWS(m1.at("the pooh"));
+#endif
     }
 }
 

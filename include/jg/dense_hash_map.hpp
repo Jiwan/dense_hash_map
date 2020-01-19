@@ -280,6 +280,7 @@ public:
     constexpr auto operator=(const dense_hash_map& other) -> dense_hash_map& = default;
     constexpr auto operator=(dense_hash_map&& other) noexcept(is_nothrow_move_assignable)
         -> dense_hash_map& = default;
+
     constexpr auto operator=(std::initializer_list<value_type> ilist) -> dense_hash_map&
     {
         clear();
@@ -289,7 +290,25 @@ public:
 
     constexpr auto get_allocator() const -> allocator_type { return buckets_.get_allocator(); }
 
-    void clear() noexcept
+    constexpr auto begin() noexcept -> iterator { return iterator{nodes_.begin()}; }
+
+    constexpr auto begin() const noexcept -> const_iterator { return const_iterator{nodes_.begin()}; }
+
+    constexpr auto cbegin() const noexcept -> const_iterator { return const_iterator{nodes_.cbegin()}; }
+
+    constexpr auto end() noexcept -> iterator { return iterator{nodes_.end()}; }
+
+    constexpr auto end() const noexcept -> const_iterator { return const_iterator{nodes_.end()}; }
+
+    constexpr auto cend() const noexcept -> const_iterator { return const_iterator{nodes_.cend()}; }
+
+    [[nodiscard]] constexpr auto empty() const noexcept -> bool { return nodes_.empty(); }
+
+    constexpr auto size() const noexcept -> size_type { return nodes_.size(); }
+
+    constexpr auto max_size() const noexcept -> size_type { return nodes_.max_size(); }
+
+    constexpr void clear() noexcept
     {
         nodes_.clear();
         buckets_.clear();
@@ -421,97 +440,7 @@ public:
         return try_emplace(std::move(key), std::forward<Args>(args)...).iterator;
     }
 
-    [[nodiscard]] auto empty() const noexcept -> bool { return nodes_.empty(); }
-
-    auto size() const noexcept -> size_type { return nodes_.size(); }
-
-    auto max_size() const noexcept -> size_type { return nodes_.max_size(); }
-
-    auto begin() noexcept -> iterator { return iterator{nodes_.begin()}; }
-
-    auto begin() const noexcept -> const_iterator { return const_iterator{nodes_.begin()}; }
-
-    auto cbegin() const noexcept -> const_iterator { return const_iterator{nodes_.cbegin()}; }
-
-    auto end() noexcept -> iterator { return iterator{nodes_.end()}; }
-
-    auto end() const noexcept -> const_iterator { return const_iterator{nodes_.end()}; }
-
-    auto cend() const noexcept -> const_iterator { return const_iterator{nodes_.cend()}; }
-
-    auto begin(size_type n) -> local_iterator { return {buckets_[n], nodes_}; }
-
-    auto begin(size_type n) const -> const_local_iterator { return {buckets_[n], nodes_}; }
-
-    auto cbegin(size_type n) const -> const_local_iterator { return {buckets_[n], nodes_}; }
-
-    auto end(size_type /*n*/) -> local_iterator { return {nodes_}; }
-
-    auto end(size_type /*n*/) const -> const_local_iterator { return {nodes_}; }
-
-    auto cend(size_type /*n*/) const -> const_local_iterator { return {nodes_}; }
-
-    auto bucket_count() const -> size_type { return buckets_.size(); }
-
-    constexpr auto bucket_size(size_type n) const -> size_type
-    {
-        return static_cast<size_t>(std::distance(begin(n), end(n)));
-    }
-
-    constexpr auto bucket(const key_type& key) const -> size_type { return bucket_index(key); }
-
-    constexpr auto max_bucket_count() const -> size_type { return buckets_.max_size(); }
-
-    auto load_factor() const -> float { return size() / static_cast<float>(bucket_count()); }
-
-    auto max_load_factor() const -> float { return max_load_factor_; }
-
-    void max_load_factor(float ml)
-    {
-        assert(ml > 0.0f && "The max load factor must be greater than 0.0f.");
-        max_load_factor_ = ml;
-        rehash(8);
-    }
-
-    void rehash(size_type count)
-    {
-        count = std::max(minimum_capacity(), count);
-        count = std::max(count, static_cast<size_type>(size() / max_load_factor()));
-
-        count = compute_closest_capacity(count);
-
-        assert(count > 0 && "The computed rehash size must be greater than 0.");
-
-        if (count == buckets_.size())
-        {
-            return;
-        }
-
-        buckets_.resize(count);
-
-        std::fill(buckets_.begin(), buckets_.end(), node_end_index);
-
-        node_index_type index{0u};
-
-        for (auto& entry : nodes_)
-        {
-            entry.next = node_end_index;
-            reinsert_entry(entry, index);
-            index++;
-        }
-    }
-
-    constexpr void reserve(std::size_t count)
-    {
-        rehash(std::ceil(count / max_load_factor()));
-        nodes_.reserve(count);
-    }
-
-    constexpr auto hash_function() const -> hasher { return hash_; }
-
-    constexpr auto key_eq() const -> key_equal { return key_equal_; }
-
-    auto erase(const_iterator pos) -> iterator
+    constexpr auto erase(const_iterator pos) -> iterator
     {
         auto position = std::distance(cbegin(), pos);
         auto it = std::next(begin(), position);
@@ -519,7 +448,7 @@ public:
         return do_erase(previous_next, it.sub_iterator()).first;
     }
 
-    auto erase(const_iterator first, const_iterator last) -> iterator
+    constexpr auto erase(const_iterator first, const_iterator last) -> iterator
     {
         bool stop = first == last;
         while (!stop)
@@ -529,11 +458,11 @@ public:
             last = erase(last);
         }
 
-        auto position = std::distance(cbegin(), last);
+        const auto position = std::distance(cbegin(), last);
         return std::next(begin(), position);
     }
 
-    auto erase(const key_type& key) -> size_type
+    constexpr auto erase(const key_type& key) -> size_type
     {
         // We have to find out the node we look for and the pointer to it.
         auto bindex = bucket_index(key);
@@ -562,7 +491,7 @@ public:
         return 1;
     }
 
-    void swap(dense_hash_map& other) noexcept(is_nothrow_swappable)
+    constexpr void swap(dense_hash_map& other) noexcept(is_nothrow_swappable)
     {
         using std::swap;
         swap(buckets_, other.buckets_);
@@ -576,10 +505,13 @@ public:
     {
         auto it = find(key);
 
-        // TODO: exception free.
         if (it == end())
         {
+#ifdef JG_NO_EXCEPTION
+            std::abort();
+#else
             throw std::out_of_range("The specified key does not exists in this map.");
+#endif
         }
 
         return it->second;
@@ -589,10 +521,13 @@ public:
     {
         auto it = find(key);
 
-        // TODO: exception free.
         if (it == end())
         {
+#ifdef JG_NO_EXCEPTION
+            std::abort();
+#else
             throw std::out_of_range("The specified key does not exists in this map.");
+#endif
         }
 
         return it->second;
@@ -608,11 +543,11 @@ public:
         return this->try_emplace(std::move(key)).first->second;
     }
 
-    auto count(const key_type& key) const -> size_type { return find(key) == end() ? 0u : 1u; }
+    constexpr auto count(const key_type& key) const -> size_type { return find(key) == end() ? 0u : 1u; }
 
     template <
         class K, class Useless = std::enable_if_t<details::is_transparent_key_equal_v<Hash>, K>>
-    auto count(const K& key) const -> size_type
+    constexpr auto count(const K& key) const -> size_type
     {
         return find(key) == end() ? 0u : 1u;
     }
@@ -702,15 +637,87 @@ public:
         return {it, std::next(it)};
     }
 
+    constexpr auto begin(size_type n) -> local_iterator { return local_iterator{buckets_[n], nodes_}; }
+
+    constexpr auto begin(size_type n) const -> const_local_iterator { return const_local_iterator{buckets_[n], nodes_}; }
+
+    constexpr auto cbegin(size_type n) const -> const_local_iterator { return const_local_iterator{buckets_[n], nodes_}; }
+
+    constexpr auto end(size_type /*n*/) -> local_iterator { return local_iterator{nodes_}; }
+
+    constexpr auto end(size_type /*n*/) const -> const_local_iterator { return const_local_iterator{nodes_}; }
+
+    constexpr auto cend(size_type /*n*/) const -> const_local_iterator { return const_local_iterator{nodes_}; }
+
+    constexpr auto bucket_count() const -> size_type { return buckets_.size(); }
+
+    constexpr auto max_bucket_count() const -> size_type { return buckets_.max_size(); }
+
+    constexpr auto bucket_size(size_type n) const -> size_type
+    {
+        return static_cast<size_t>(std::distance(begin(n), end(n)));
+    }
+
+    constexpr auto bucket(const key_type& key) const -> size_type { return bucket_index(key); }
+
+    constexpr auto load_factor() const -> float { return size() / static_cast<float>(bucket_count()); }
+
+    constexpr auto max_load_factor() const -> float { return max_load_factor_; }
+
+    constexpr void max_load_factor(float ml)
+    {
+        assert(ml > 0.0f && "The max load factor must be greater than 0.0f.");
+        max_load_factor_ = ml;
+        rehash(8);
+    }
+
+    constexpr void rehash(size_type count)
+    {
+        count = std::max(minimum_capacity(), count);
+        count = std::max(count, static_cast<size_type>(size() / max_load_factor()));
+
+        count = compute_closest_capacity(count);
+
+        assert(count > 0 && "The computed rehash size must be greater than 0.");
+
+        if (count == buckets_.size())
+        {
+            return;
+        }
+
+        buckets_.resize(count);
+
+        std::fill(buckets_.begin(), buckets_.end(), node_end_index);
+
+        node_index_type index{0u};
+
+        for (auto& entry : nodes_)
+        {
+            entry.next = node_end_index;
+            reinsert_entry(entry, index);
+            index++;
+        }
+    }
+
+    constexpr void reserve(std::size_t count)
+    {
+        rehash(std::ceil(count / max_load_factor()));
+        nodes_.reserve(count);
+    }
+
+    constexpr auto hash_function() const -> hasher { return hash_; }
+
+    constexpr auto key_eq() const -> key_equal { return key_equal_; }
+
 private:
     template <class K>
-    auto bucket_index(const K& key) const -> size_type
+    constexpr auto bucket_index(const K& key) const -> size_type
     {
         return compute_index(hash_(key), buckets_.size());
     }
 
     template <class K>
-    auto find_in_bucket(const K& key, std::size_t bucket_index) -> local_iterator
+    constexpr auto find_in_bucket(const K& key, std::size_t bucket_index) -> local_iterator
     {
         auto b = begin(bucket_index);
         auto e = end(0u);
@@ -719,7 +726,7 @@ private:
     }
 
     template <class K>
-    auto find_in_bucket(const K& key, std::size_t bucket_index) const -> const_local_iterator
+    constexpr auto find_in_bucket(const K& key, std::size_t bucket_index) const -> const_local_iterator
     {
         auto b = begin(bucket_index);
         auto e = end(0u);
@@ -727,7 +734,7 @@ private:
         return it;
     }
 
-    auto do_erase(std::size_t* previous_next, typename entries_container_type::iterator sub_it)
+    constexpr auto do_erase(std::size_t* previous_next, typename entries_container_type::iterator sub_it)
         -> std::pair<iterator, bool>
     {
         // Skip the node by pointing the previous "next" to the one sub_it currently point to.
@@ -757,7 +764,7 @@ private:
         return {iterator{sub_it}, true};
     }
 
-    auto find_previous_next_using_position(const key_type& key, std::size_t position)
+    constexpr auto find_previous_next_using_position(const key_type& key, std::size_t position)
         -> std::size_t*
     {
         std::size_t bindex = bucket_index(key);
@@ -771,14 +778,14 @@ private:
         return previous_next;
     }
 
-    void reinsert_entry(node_type& entry, node_index_type index)
+    constexpr void reinsert_entry(node_type& entry, node_index_type index)
     {
         auto bindex = bucket_index(entry.pair.const_.first);
         auto old_index = std::exchange(buckets_[bindex], index);
         entry.next = old_index;
     }
 
-    void check_for_rehash()
+    constexpr void check_for_rehash()
     {
         if (size() + 1 > bucket_count() * max_load_factor())
         {
@@ -792,7 +799,7 @@ private:
     }
 
     template <class Key2, class T2>
-    auto dispatch_emplace(Key2&& key, T2&& t) -> std::pair<iterator, bool>
+    constexpr auto dispatch_emplace(Key2&& key, T2&& t) -> std::pair<iterator, bool>
     {
         if constexpr (std::is_same_v<std::decay_t<Key2>, key_type>)
         {
@@ -808,7 +815,7 @@ private:
     }
 
     template <class Pair>
-    auto dispatch_emplace(Pair&& p) -> std::pair<iterator, bool>
+    constexpr auto dispatch_emplace(Pair&& p) -> std::pair<iterator, bool>
     {
         if constexpr (std::is_same_v<std::decay_t<decltype(p.first)>, key_type>)
         {
@@ -822,7 +829,7 @@ private:
     }
 
     template <class... Args1, class... Args2>
-    auto dispatch_emplace(
+    constexpr auto dispatch_emplace(
         std::piecewise_construct_t, std::tuple<Args1...> first_args,
         std::tuple<Args2...> second_args) -> std::pair<iterator, bool>
     {
@@ -832,7 +839,7 @@ private:
     }
 
     template <class... Args>
-    auto do_emplace(const key_type& key, Args&&... args) -> std::pair<iterator, bool>
+    constexpr auto do_emplace(const key_type& key, Args&&... args) -> std::pair<iterator, bool>
     {
         check_for_rehash();
 
@@ -973,7 +980,7 @@ namespace pmr
 namespace std
 {
 template <class Key, class T, class Hash, class Pred, class Allocator, class GrowthPolicy>
-void swap(
+constexpr void swap(
     jg::dense_hash_map<Key, T, Hash, Pred, Allocator, GrowthPolicy>& lhs,
     jg::dense_hash_map<Key, T, Hash, Pred, Allocator, GrowthPolicy>&
         rhs) noexcept(noexcept(lhs.swap(rhs)))
@@ -982,7 +989,7 @@ void swap(
 }
 
 template <class Key, class T, class Hash, class KeyEqual, class Alloc, class Pred>
-void erase_if(jg::dense_hash_map<Key, T, Hash, KeyEqual, Alloc>& c, Pred pred)
+constexpr void erase_if(jg::dense_hash_map<Key, T, Hash, KeyEqual, Alloc>& c, Pred pred)
 {
     auto rit = std::make_reverse_iterator(c.end());
     auto rend = std::make_reverse_iterator(c.begin());
