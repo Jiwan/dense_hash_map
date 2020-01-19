@@ -24,7 +24,9 @@ public:
     using pointer = value_type*;
 
     constexpr bucket_iterator() = default;
-    constexpr explicit bucket_iterator(nodes_container_type& nodes_container) : nodes_container(&nodes_container) {}
+    constexpr explicit bucket_iterator(nodes_container_type& nodes_container)
+        : nodes_container(&nodes_container)
+    {}
 
     constexpr bucket_iterator(node_index_type index, nodes_container_type& nodes_container)
         : nodes_container(&nodes_container), current_node_index_(index)

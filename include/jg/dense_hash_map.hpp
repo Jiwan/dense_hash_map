@@ -292,9 +292,15 @@ public:
 
     constexpr auto begin() noexcept -> iterator { return iterator{nodes_.begin()}; }
 
-    constexpr auto begin() const noexcept -> const_iterator { return const_iterator{nodes_.begin()}; }
+    constexpr auto begin() const noexcept -> const_iterator
+    {
+        return const_iterator{nodes_.begin()};
+    }
 
-    constexpr auto cbegin() const noexcept -> const_iterator { return const_iterator{nodes_.cbegin()}; }
+    constexpr auto cbegin() const noexcept -> const_iterator
+    {
+        return const_iterator{nodes_.cbegin()};
+    }
 
     constexpr auto end() noexcept -> iterator { return iterator{nodes_.end()}; }
 
@@ -543,7 +549,10 @@ public:
         return this->try_emplace(std::move(key)).first->second;
     }
 
-    constexpr auto count(const key_type& key) const -> size_type { return find(key) == end() ? 0u : 1u; }
+    constexpr auto count(const key_type& key) const -> size_type
+    {
+        return find(key) == end() ? 0u : 1u;
+    }
 
     template <
         class K, class Useless = std::enable_if_t<details::is_transparent_key_equal_v<Hash>, K>>
@@ -637,17 +646,32 @@ public:
         return {it, std::next(it)};
     }
 
-    constexpr auto begin(size_type n) -> local_iterator { return local_iterator{buckets_[n], nodes_}; }
+    constexpr auto begin(size_type n) -> local_iterator
+    {
+        return local_iterator{buckets_[n], nodes_};
+    }
 
-    constexpr auto begin(size_type n) const -> const_local_iterator { return const_local_iterator{buckets_[n], nodes_}; }
+    constexpr auto begin(size_type n) const -> const_local_iterator
+    {
+        return const_local_iterator{buckets_[n], nodes_};
+    }
 
-    constexpr auto cbegin(size_type n) const -> const_local_iterator { return const_local_iterator{buckets_[n], nodes_}; }
+    constexpr auto cbegin(size_type n) const -> const_local_iterator
+    {
+        return const_local_iterator{buckets_[n], nodes_};
+    }
 
     constexpr auto end(size_type /*n*/) -> local_iterator { return local_iterator{nodes_}; }
 
-    constexpr auto end(size_type /*n*/) const -> const_local_iterator { return const_local_iterator{nodes_}; }
+    constexpr auto end(size_type /*n*/) const -> const_local_iterator
+    {
+        return const_local_iterator{nodes_};
+    }
 
-    constexpr auto cend(size_type /*n*/) const -> const_local_iterator { return const_local_iterator{nodes_}; }
+    constexpr auto cend(size_type /*n*/) const -> const_local_iterator
+    {
+        return const_local_iterator{nodes_};
+    }
 
     constexpr auto bucket_count() const -> size_type { return buckets_.size(); }
 
@@ -660,7 +684,10 @@ public:
 
     constexpr auto bucket(const key_type& key) const -> size_type { return bucket_index(key); }
 
-    constexpr auto load_factor() const -> float { return size() / static_cast<float>(bucket_count()); }
+    constexpr auto load_factor() const -> float
+    {
+        return size() / static_cast<float>(bucket_count());
+    }
 
     constexpr auto max_load_factor() const -> float { return max_load_factor_; }
 
@@ -726,7 +753,8 @@ private:
     }
 
     template <class K>
-    constexpr auto find_in_bucket(const K& key, std::size_t bucket_index) const -> const_local_iterator
+    constexpr auto find_in_bucket(const K& key, std::size_t bucket_index) const
+        -> const_local_iterator
     {
         auto b = begin(bucket_index);
         auto e = end(0u);
@@ -734,7 +762,8 @@ private:
         return it;
     }
 
-    constexpr auto do_erase(std::size_t* previous_next, typename entries_container_type::iterator sub_it)
+    constexpr auto
+    do_erase(std::size_t* previous_next, typename entries_container_type::iterator sub_it)
         -> std::pair<iterator, bool>
     {
         // Skip the node by pointing the previous "next" to the one sub_it currently point to.

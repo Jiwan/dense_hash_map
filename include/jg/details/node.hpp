@@ -29,7 +29,7 @@ union key_value_pair
     {}
 
     template <class Allocator, class... Args>
-    constexpr key_value_pair(std::allocator_arg_t, const Allocator& alloc, Args&&... args)
+    key_value_pair(std::allocator_arg_t, const Allocator& alloc, Args&&... args)
     {
         auto alloc_copy = alloc;
         std::allocator_traits<Allocator>::construct(
@@ -70,11 +70,12 @@ union key_value_pair
 template <class T, bool = std::is_copy_constructible_v<T>>
 struct disable_copy_constructor
 {
-    constexpr  disable_copy_constructor() = default;
+    constexpr disable_copy_constructor() = default;
     disable_copy_constructor(const disable_copy_constructor&) = delete;
-    constexpr  disable_copy_constructor(disable_copy_constructor&&) = default;
-    constexpr  auto operator=(const disable_copy_constructor&) -> disable_copy_constructor& = default;
-    constexpr  auto operator=(disable_copy_constructor &&) -> disable_copy_constructor& = default;
+    constexpr disable_copy_constructor(disable_copy_constructor&&) = default;
+    constexpr auto operator=(const disable_copy_constructor&)
+        -> disable_copy_constructor& = default;
+    constexpr auto operator=(disable_copy_constructor &&) -> disable_copy_constructor& = default;
 };
 
 template <class T>
@@ -85,11 +86,11 @@ struct disable_copy_constructor<T, true>
 template <class T, bool = std::is_copy_assignable_v<T>>
 struct disable_copy_assignment
 {
-     constexpr disable_copy_assignment() = default;
-    constexpr  disable_copy_assignment(const disable_copy_assignment&) = default;
-    constexpr  disable_copy_assignment(disable_copy_assignment&&) = default;
+    constexpr disable_copy_assignment() = default;
+    constexpr disable_copy_assignment(const disable_copy_assignment&) = default;
+    constexpr disable_copy_assignment(disable_copy_assignment&&) = default;
     auto operator=(const disable_copy_assignment&) -> disable_copy_assignment& = delete;
-    constexpr  auto operator=(disable_copy_assignment &&) -> disable_copy_assignment& = default;
+    constexpr auto operator=(disable_copy_assignment &&) -> disable_copy_assignment& = default;
 };
 
 template <class T>
@@ -101,10 +102,11 @@ template <class T, bool = std::is_move_constructible_v<T>>
 struct disable_move_constructor
 {
     constexpr disable_move_constructor() = default;
-   constexpr disable_move_constructor(const disable_move_constructor&) = default;
+    constexpr disable_move_constructor(const disable_move_constructor&) = default;
     disable_move_constructor(disable_move_constructor&&) = delete;
-    constexpr auto operator=(const disable_move_constructor&) -> disable_move_constructor& = default;
-    constexpr  auto operator=(disable_move_constructor &&) -> disable_move_constructor& = default;
+    constexpr auto operator=(const disable_move_constructor&)
+        -> disable_move_constructor& = default;
+    constexpr auto operator=(disable_move_constructor &&) -> disable_move_constructor& = default;
 };
 
 template <class T>
@@ -134,11 +136,13 @@ struct node : disable_copy_constructor<Pair>,
               disable_move_assignment<Pair>
 {
     template <class... Args>
-    constexpr node(node_index_t<Key, T> next, Args&&... args) : next(next), pair(std::forward<Args>(args)...)
+    constexpr node(node_index_t<Key, T> next, Args&&... args)
+        : next(next), pair(std::forward<Args>(args)...)
     {}
 
     template <class Allocator, class... Args>
-    constexpr node(std::allocator_arg_t, const Allocator& alloc, node_index_t<Key, T> next, Args&&... args)
+    constexpr node(
+        std::allocator_arg_t, const Allocator& alloc, node_index_t<Key, T> next, Args&&... args)
         : next(next), pair(std::allocator_arg, alloc, std::forward<Args>(args)...)
     {}
 
