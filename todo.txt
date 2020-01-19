@@ -1,4 +1,3 @@
-- Pass test with ASAN and UBSAN.
 - Benchmarks.
 - Setup travis.
 - Doc.
@@ -13,3 +12,4 @@ Done:
 - Exception free.
 - double check everything.
 - Slap constexpr as much as possible.
+- Pass test with ASAN and UBSAN.
