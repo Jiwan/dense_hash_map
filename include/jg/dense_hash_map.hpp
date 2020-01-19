@@ -442,9 +442,9 @@ public:
 
     constexpr auto erase(const_iterator pos) -> iterator
     {
-        auto position = std::distance(cbegin(), pos);
-        auto it = std::next(begin(), position);
-        auto previous_next = find_previous_next_using_position(pos->first, position);
+        const auto position = std::distance(cbegin(), pos);
+        const auto it = std::next(begin(), position);
+        const auto previous_next = find_previous_next_using_position(pos->first, position);
         return do_erase(previous_next, it.sub_iterator()).first;
     }
 
@@ -465,7 +465,7 @@ public:
     constexpr auto erase(const key_type& key) -> size_type
     {
         // We have to find out the node we look for and the pointer to it.
-        auto bindex = bucket_index(key);
+        const auto bindex = bucket_index(key);
 
         std::size_t* previous_next = &buckets_[bindex];
 
@@ -503,7 +503,7 @@ public:
 
     constexpr auto at(const key_type& key) -> T&
     {
-        auto it = find(key);
+        const auto it = find(key);
 
         if (it == end())
         {
@@ -519,7 +519,7 @@ public:
 
     constexpr auto at(const key_type& key) const -> const T&
     {
-        auto it = find(key);
+        const auto it = find(key);
 
         if (it == end())
         {
@@ -767,7 +767,7 @@ private:
     constexpr auto find_previous_next_using_position(const key_type& key, std::size_t position)
         -> std::size_t*
     {
-        std::size_t bindex = bucket_index(key);
+        const std::size_t bindex = bucket_index(key);
 
         auto previous_next = &buckets_[bindex];
         while (*previous_next != position)
@@ -780,7 +780,7 @@ private:
 
     constexpr void reinsert_entry(node_type& entry, node_index_type index)
     {
-        auto bindex = bucket_index(entry.pair.const_.first);
+        const auto bindex = bucket_index(entry.pair.const_.first);
         auto old_index = std::exchange(buckets_[bindex], index);
         entry.next = old_index;
     }
@@ -843,7 +843,7 @@ private:
     {
         check_for_rehash();
 
-        auto bindex = bucket_index(key);
+        const auto bindex = bucket_index(key);
         auto local_it = find_in_bucket(key, bindex);
 
         if (local_it != end(0u))
