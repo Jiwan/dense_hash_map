@@ -5,9 +5,10 @@ addons:
     apt:
         sources:
             - sourceline: "ppa:ubuntu-toolchain-r/test"
+            - llvm-toolchain-bionic-9
         packages:
             - g++-9
-            - llvm-toolchain-bionic-9
+            - clang-9
 
 jobs:
     - name: GCC Debug
