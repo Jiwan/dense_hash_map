@@ -4,7 +4,7 @@ os: linux
 addons:
     apt:
         sources:
-            - ubuntu-toolchain-r-test
+            - sourceline: "ppa:ubuntu-toolchain-r/test"
     packages:
         - g++-9
         - llvm-toolchain-bionic-9
@@ -18,7 +18,7 @@ jobs:
           - EXTRA_CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Debug -DENABLE_ASAN=ON"
     - name: GCC Debug UBSAN
       env:
-          - EXTRA_CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Debug -DENABLE_UBASAN=ON"
+          - EXTRA_CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Debug -DENABLE_UBSAN=ON"
 
 install:    
   - DEPS_DIR="${TRAVIS_BUILD_DIR}/deps"
