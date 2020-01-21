@@ -1,0 +1,40 @@
+language: cpp
+dist: bionic
+os: linux
+addons:
+    apt:
+        sources:
+            - ubuntu-toolchain-r-test
+    packages:
+        - g++-9
+        - llvm-toolchain-bionic-9
+
+jobs:
+    - name: GCC Debug
+      env:
+          - EXTRA_CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Debug"
+    - name: GCC Debug ASAN
+      env:
+          - EXTRA_CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Debug -DENABLE_ASAN=ON"
+    - name: GCC Debug UBSAN
+      env:
+          - EXTRA_CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Debug -DENABLE_UBASAN=ON"
+
+install:    
+  - DEPS_DIR="${TRAVIS_BUILD_DIR}/deps"
+  - mkdir ${DEPS_DIR}
+  - pushd ${DEPS_DIR}
+  - travis_retry wget --no-check-certificate https://github.com/Kitware/CMake/releases/download/v3.16.3/cmake-3.16.3-Linux-x86_64.tar.gz 
+  - tar -xvf cmake-3.16.3-Linux-x86_64.tar.gz > /dev/null
+  - mv cmake-3.16.3-Linux-x86_64 cmake-install
+  - PATH=${DEPS_DIR}/cmake-install:${DEPS_DIR}/cmake-install/bin:$PATH
+  - popd
+
+before_script:
+    - mkdir build
+    - cd build
+    - cmake "${EXTRA_CMAKE_FLAGS}" .. 
+
+script:
+    - make 
+    - ./tests/dense_hash_map_tests
