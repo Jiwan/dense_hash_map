@@ -12,12 +12,15 @@ addons:
 jobs:
     - name: GCC Debug
       env:
+          - COMPILER="g++-9"
           - EXTRA_CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Debug"
     - name: GCC Debug ASAN
       env:
+          - COMPILER="g++-9"
           - EXTRA_CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Debug -DENABLE_ASAN=ON"
     - name: GCC Debug UBSAN
       env:
+          - COMPILER="g++-9"
           - EXTRA_CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Debug -DENABLE_UBSAN=ON"
 
 install:    
@@ -33,6 +36,7 @@ install:
 before_script:
     - mkdir build
     - cd build
+    - export CXX="${COMPILER}"
     - cmake "${EXTRA_CMAKE_FLAGS}" .. 
 
 script:
