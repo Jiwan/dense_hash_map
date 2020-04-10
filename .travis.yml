@@ -27,6 +27,18 @@ jobs:
       env:
           - COMPILER="g++-9"
           - EXTRA_CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Debug -DENABLE_UBSAN=ON -DCMAKE_CXX_FLAGS=\"-DJG_STRICT_TYPE_PUNNING\""
+    - name: GCC Release 
+      env:
+          - COMPILER="g++-9"
+          - EXTRA_CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Release"
+    - name: clang Debug 
+      env:
+          - COMPILER="clang++-9"
+          - EXTRA_CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Debug"
+    - name: clang Release 
+      env:
+          - COMPILER="clang++-9"
+          - EXTRA_CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Release"
 
 install:    
   - DEPS_DIR="${TRAVIS_BUILD_DIR}/deps"
