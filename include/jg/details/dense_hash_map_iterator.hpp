@@ -53,11 +53,11 @@ public:
     {
         if constexpr (projectToConstKey)
         {
-            return sub_iterator_->pair.const_;
+            return sub_iterator_->pair.const_key_pair();
         }
         else
         {
-            return sub_iterator_->pair.non_const_;
+            return sub_iterator_->pair.pair();
         }
     }
 
@@ -65,11 +65,11 @@ public:
     {
         if constexpr (projectToConstKey)
         {
-            return &(sub_iterator_->pair.const_);
+            return &(sub_iterator_->pair.const_key_pair());
         }
         else
         {
-            return &(sub_iterator_->pair.non_const_);
+            return &(sub_iterator_->pair.pair());
         }
     }
 
@@ -93,11 +93,11 @@ public:
     {
         if constexpr (projectToConstKey)
         {
-            return sub_iterator_[index]->pair.const_;
+            return sub_iterator_[index]->pair.const_key_pair();
         }
         else
         {
-            return sub_iterator_[index]->pair.non_const_;
+            return sub_iterator_[index]->pair.pair();
         }
     }
 

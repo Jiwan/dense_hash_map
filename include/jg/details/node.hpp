@@ -3,6 +3,7 @@
 
 #include <limits>
 #include <memory>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -19,53 +20,131 @@ template <class Key, class T>
 constexpr node_index_t<Key, T> node_end_index = std::numeric_limits<node_index_t<Key, T>>::max();
 
 template <class Key, class T>
-union key_value_pair
+union union_key_value_pair
 {
-    using non_const_pair = std::pair<Key, T>;
-    using const_pair = std::pair<const Key, T>;
+    using pair_t = std::pair<Key, T>;
+    using const_key_pair_t = std::pair<const Key, T>;
+
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Winvalid-offsetof"
+#endif    
+    static_assert(offsetof(pair_t, first) == offsetof(const_key_pair_t, first) && offsetof(pair_t, second) == offsetof(const_key_pair_t, second), "");
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
 
     template <class... Args>
-    constexpr key_value_pair(Args&&... args) : non_const_(std::forward<Args>(args)...)
+    constexpr union_key_value_pair(Args&&... args) : pair_(std::forward<Args>(args)...)
     {}
 
     template <class Allocator, class... Args>
-    key_value_pair(std::allocator_arg_t, const Allocator& alloc, Args&&... args)
+    constexpr union_key_value_pair(std::allocator_arg_t, const Allocator& alloc, Args&&... args)
     {
         auto alloc_copy = alloc;
         std::allocator_traits<Allocator>::construct(
-            alloc_copy, &non_const_, std::forward<Args>(args)...);
+            alloc_copy, &pair_, std::forward<Args>(args)...);
     }
 
-    constexpr key_value_pair(const key_value_pair& other) noexcept(
-        std::is_nothrow_copy_constructible_v<non_const_pair>)
-        : non_const_(other.non_const_)
+    constexpr union_key_value_pair(const union_key_value_pair& other) noexcept(
+        std::is_nothrow_copy_constructible_v<pair_t>)
+        : pair_(other.pair_)
     {}
 
-    constexpr key_value_pair(key_value_pair&& other) noexcept(
-        std::is_nothrow_move_constructible_v<non_const_pair>)
-        : non_const_(std::move(other.non_const_))
+    constexpr union_key_value_pair(union_key_value_pair&& other) noexcept(
+        std::is_nothrow_move_constructible_v<pair_t>)
+        : pair_(std::move(other.pair_))
     {}
 
-    constexpr auto operator=(const key_value_pair& other) noexcept(
-        std::is_nothrow_copy_assignable_v<non_const_pair>) -> key_value_pair&
+    constexpr auto operator=(const union_key_value_pair& other) noexcept(
+        std::is_nothrow_copy_assignable_v<pair_t>) -> union_key_value_pair&
     {
-        non_const_ = other.non_const_;
+        pair_ = other.pair_;
         return *this;
     }
 
     constexpr auto
-    operator=(key_value_pair&& other) noexcept(std::is_nothrow_move_assignable_v<non_const_pair>)
-        -> key_value_pair&
+    operator=(union_key_value_pair&& other) noexcept(std::is_nothrow_move_assignable_v<pair_t>)
+        -> union_key_value_pair&
     {
-        non_const_ = std::move(other).non_const_;
+        pair_ = std::move(other).pair_;
         return *this;
     }
 
-    ~key_value_pair() { non_const_.~pair(); }
+    ~union_key_value_pair() { pair_.~pair_t(); }
 
-    non_const_pair non_const_;
-    const_pair const_;
+    constexpr pair_t& pair() {
+        return pair_;
+    }
+
+    constexpr const pair_t& pair() const {
+        return pair_;
+    }
+
+    constexpr const_key_pair_t& const_key_pair() {
+        return const_key_pair_;
+    }
+
+    constexpr const const_key_pair_t& const_key_pair() const {
+        return const_key_pair_;
+    }
+
+private:
+    pair_t pair_;
+    const_key_pair_t const_key_pair_;
 };
+
+#ifdef JG_STRICT_TYPE_PUNNING
+
+template <class Key, class T>
+struct key_value_pair
+{
+    using const_key_pair_t = std::pair<const Key, T>;
+
+    template <class... Args>
+    constexpr key_value_pair(Args&&... args) : const_key_pair_(std::forward<Args>(args)...)
+    {}
+
+    template <class Allocator, class... Args>
+    constexpr key_value_pair(std::allocator_arg_t, const Allocator& alloc, Args&&... args)
+    {
+        auto alloc_copy = alloc;
+        std::allocator_traits<Allocator>::construct(
+            alloc_copy, &const_key_pair_, std::forward<Args>(args)...);
+    }
+
+    constexpr const_key_pair_t& pair() {
+        return const_key_pair_;
+    }
+
+    constexpr const const_key_pair_t& pair() const {
+        return const_key_pair_;
+    }
+
+    constexpr const_key_pair_t& const_key_pair() {
+        return const_key_pair_;
+    }
+
+    constexpr const const_key_pair_t& const_key_pair() const {
+        return const_key_pair_;
+    }
+
+private:
+    const_key_pair_t const_key_pair_;
+};
+
+template <class Key, class T>
+inline constexpr bool are_pairs_standard_layout_v = std::is_standard_layout_v<std::pair<const Key, T>> && std::is_standard_layout_v<std::pair<Key, T>>;
+
+template <class Key, class T> 
+using key_value_pair_t = std::conditional_t<are_pairs_standard_layout_v<Key, T>, union_key_value_pair<Key, T>, key_value_pair<Key, T>>;
+
+#else 
+
+template <class Key, class T> 
+using key_value_pair_t = union_key_value_pair<Key, T>;
+
+#endif 
 
 template <class T, bool = std::is_copy_constructible_v<T>>
 struct disable_copy_constructor
@@ -148,17 +227,17 @@ struct node : disable_copy_constructor<Pair>,
 
     template <class Allocator, class Node>
     constexpr node(std::allocator_arg_t, const Allocator& alloc, const Node& other)
-        : next(other.next), pair(std::allocator_arg, alloc, other.pair.non_const_)
+        : next(other.next), pair(std::allocator_arg, alloc, other.pair.pair())
     {}
 
     template <class Allocator, class Node>
     constexpr node(std::allocator_arg_t, const Allocator& alloc, Node&& other)
         : next(std::move(other.next))
-        , pair(std::allocator_arg, alloc, std::move(other.pair.non_const_))
+        , pair(std::allocator_arg, alloc, std::move(other.pair.pair()))
     {}
 
     node_index_t<Key, T> next = node_end_index<Key, T>;
-    key_value_pair<Key, T> pair;
+    key_value_pair_t<Key, T> pair;
 };
 
 } // namespace jg::details

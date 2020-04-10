@@ -23,6 +23,10 @@ jobs:
       env:
           - COMPILER="g++-9"
           - EXTRA_CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Debug -DENABLE_UBSAN=ON"
+    - name: GCC Debug Strict Type Punning 
+      env:
+          - COMPILER="g++-9"
+          - EXTRA_CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Debug -DENABLE_UBSAN=ON -DCMAKE_CXX_FLAGS=\"-DJG_STRICT_TYPE_PUNNING\""
 
 install:    
   - DEPS_DIR="${TRAVIS_BUILD_DIR}/deps"

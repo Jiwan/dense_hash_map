@@ -36,11 +36,11 @@ public:
     {
         if constexpr (projectToConstKey)
         {
-            return (*nodes_container)[current_node_index_].pair.const_;
+            return (*nodes_container)[current_node_index_].pair.const_key_pair();
         }
         else
         {
-            return (*nodes_container)[current_node_index_].pair.non_const_;
+            return (*nodes_container)[current_node_index_].pair.pair();
         }
     }
 
@@ -61,11 +61,11 @@ public:
     {
         if constexpr (projectToConstKey)
         {
-            return &(*nodes_container)[current_node_index_].pair.const_;
+            return &(*nodes_container)[current_node_index_].pair.const_key_pair();
         }
         else
         {
-            return &(*nodes_container)[current_node_index_].pair.non_const_;
+            return &(*nodes_container)[current_node_index_].pair.pair();
         }
     }
 
