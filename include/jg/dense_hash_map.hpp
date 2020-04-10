@@ -484,7 +484,7 @@ public:
 
             auto& node = nodes_[*previous_next];
 
-            if (key_equal_(node.pair.non_const_.first, key))
+            if (key_equal_(node.pair.pair().first, key))
             {
                 break;
             }
@@ -784,7 +784,7 @@ private:
 
         // Now sub_it points to the one we swapped with. We have to readjust sub_it.
         previous_next =
-            find_previous_next_using_position(sub_it->pair.non_const_.first, nodes_.size() - 1);
+            find_previous_next_using_position(sub_it->pair.pair().first, nodes_.size() - 1);
         *previous_next = std::distance(nodes_.begin(), sub_it);
 
         // Delete the last node forever and ever.
