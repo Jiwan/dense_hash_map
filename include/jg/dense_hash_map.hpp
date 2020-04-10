@@ -809,7 +809,7 @@ private:
 
     constexpr void reinsert_entry(node_type& entry, node_index_type index)
     {
-        const auto bindex = bucket_index(entry.pair.const_.first);
+        const auto bindex = bucket_index(entry.pair.const_key_pair().first);
         auto old_index = std::exchange(buckets_[bindex], index);
         entry.next = old_index;
     }
