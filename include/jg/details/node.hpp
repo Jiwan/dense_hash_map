@@ -28,8 +28,11 @@ union union_key_value_pair
 #ifdef __GNUC__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Winvalid-offsetof"
-#endif    
-    static_assert(offsetof(pair_t, first) == offsetof(const_key_pair_t, first) && offsetof(pair_t, second) == offsetof(const_key_pair_t, second), "");
+#endif
+    static_assert(
+        offsetof(pair_t, first) == offsetof(const_key_pair_t, first) &&
+            offsetof(pair_t, second) == offsetof(const_key_pair_t, second),
+        "");
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
 #endif
@@ -56,8 +59,9 @@ union union_key_value_pair
         : pair_(std::move(other.pair_))
     {}
 
-    constexpr auto operator=(const union_key_value_pair& other) noexcept(
-        std::is_nothrow_copy_assignable_v<pair_t>) -> union_key_value_pair&
+    constexpr auto
+    operator=(const union_key_value_pair& other) noexcept(std::is_nothrow_copy_assignable_v<pair_t>)
+        -> union_key_value_pair&
     {
         pair_ = other.pair_;
         return *this;
@@ -73,21 +77,13 @@ union union_key_value_pair
 
     ~union_key_value_pair() { pair_.~pair_t(); }
 
-    constexpr pair_t& pair() {
-        return pair_;
-    }
+    constexpr pair_t& pair() { return pair_; }
 
-    constexpr const pair_t& pair() const {
-        return pair_;
-    }
+    constexpr const pair_t& pair() const { return pair_; }
 
-    constexpr const_key_pair_t& const_key_pair() {
-        return const_key_pair_;
-    }
+    constexpr const_key_pair_t& const_key_pair() { return const_key_pair_; }
 
-    constexpr const const_key_pair_t& const_key_pair() const {
-        return const_key_pair_;
-    }
+    constexpr const const_key_pair_t& const_key_pair() const { return const_key_pair_; }
 
 private:
     pair_t pair_;
@@ -113,38 +109,33 @@ struct key_value_pair
             alloc_copy, &const_key_pair_, std::forward<Args>(args)...);
     }
 
-    constexpr const_key_pair_t& pair() {
-        return const_key_pair_;
-    }
+    constexpr const_key_pair_t& pair() { return const_key_pair_; }
 
-    constexpr const const_key_pair_t& pair() const {
-        return const_key_pair_;
-    }
+    constexpr const const_key_pair_t& pair() const { return const_key_pair_; }
 
-    constexpr const_key_pair_t& const_key_pair() {
-        return const_key_pair_;
-    }
+    constexpr const_key_pair_t& const_key_pair() { return const_key_pair_; }
 
-    constexpr const const_key_pair_t& const_key_pair() const {
-        return const_key_pair_;
-    }
+    constexpr const const_key_pair_t& const_key_pair() const { return const_key_pair_; }
 
 private:
     const_key_pair_t const_key_pair_;
 };
 
 template <class Key, class T>
-inline constexpr bool are_pairs_standard_layout_v = std::is_standard_layout_v<std::pair<const Key, T>> && std::is_standard_layout_v<std::pair<Key, T>>;
+inline constexpr bool are_pairs_standard_layout_v =
+    std::is_standard_layout_v<std::pair<const Key, T>>&&
+        std::is_standard_layout_v<std::pair<Key, T>>;
 
-template <class Key, class T> 
-using key_value_pair_t = std::conditional_t<are_pairs_standard_layout_v<Key, T>, union_key_value_pair<Key, T>, key_value_pair<Key, T>>;
+template <class Key, class T>
+using key_value_pair_t = std::conditional_t<
+    are_pairs_standard_layout_v<Key, T>, union_key_value_pair<Key, T>, key_value_pair<Key, T>>;
 
-#else 
+#else
 
-template <class Key, class T> 
+template <class Key, class T>
 using key_value_pair_t = union_key_value_pair<Key, T>;
 
-#endif 
+#endif
 
 template <class T, bool = std::is_copy_constructible_v<T>>
 struct disable_copy_constructor
@@ -232,8 +223,7 @@ struct node : disable_copy_constructor<Pair>,
 
     template <class Allocator, class Node>
     constexpr node(std::allocator_arg_t, const Allocator& alloc, Node&& other)
-        : next(std::move(other.next))
-        , pair(std::allocator_arg, alloc, std::move(other.pair.pair()))
+        : next(std::move(other.next)), pair(std::allocator_arg, alloc, std::move(other.pair.pair()))
     {}
 
     node_index_t<Key, T> next = node_end_index<Key, T>;
