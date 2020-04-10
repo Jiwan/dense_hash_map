@@ -42,7 +42,7 @@ union union_key_value_pair
     {}
 
     template <class Allocator, class... Args>
-    constexpr union_key_value_pair(std::allocator_arg_t, const Allocator& alloc, Args&&... args)
+    union_key_value_pair(std::allocator_arg_t, const Allocator& alloc, Args&&... args)
     {
         auto alloc_copy = alloc;
         std::allocator_traits<Allocator>::construct(
