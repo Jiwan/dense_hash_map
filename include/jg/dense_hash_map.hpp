@@ -120,11 +120,11 @@ class dense_hash_map : private GrowthPolicy
 {
 private:
     using node_type = details::node<Key, T>;
-    using entries_container_type =
+    using nodes_container_type =
         std::vector<node_type, details::rebind_alloc<Allocator, node_type>>;
-    using entries_size_type = typename entries_container_type::size_type;
+    using nodes_size_type = typename nodes_container_type::size_type;
     using buckets_container_type =
-        std::vector<entries_size_type, details::rebind_alloc<Allocator, entries_size_type>>;
+        std::vector<nodes_size_type, details::rebind_alloc<Allocator, nodes_size_type>>;
     using node_index_type = details::node_index_t<Key, T>;
     using GrowthPolicy::compute_closest_capacity;
     using GrowthPolicy::compute_index;
@@ -137,22 +137,22 @@ private:
         std::allocator_traits<Allocator>::is_always_equal::value &&
         std::is_nothrow_move_constructible_v<Hash> &&
         std::is_nothrow_move_constructible_v<deduced_key_equal> &&
-        std::is_nothrow_move_constructible_v<entries_container_type> &&
+        std::is_nothrow_move_constructible_v<nodes_container_type> &&
         std::is_nothrow_move_constructible_v<buckets_container_type>;
     static inline constexpr bool is_nothrow_move_assignable =
         std::allocator_traits<Allocator>::is_always_equal::value &&
         std::is_nothrow_move_assignable_v<Hash> &&
         std::is_nothrow_move_assignable_v<deduced_key_equal> &&
-        std::is_nothrow_move_assignable_v<entries_container_type> &&
+        std::is_nothrow_move_assignable_v<nodes_container_type> &&
         std::is_nothrow_move_assignable_v<buckets_container_type>;
     static inline constexpr bool is_nothrow_swappable =
         std::is_nothrow_swappable_v<buckets_container_type> &&
-        std::is_nothrow_swappable_v<entries_container_type> &&
+        std::is_nothrow_swappable_v<nodes_container_type> &&
         std::allocator_traits<Allocator>::is_always_equal::value &&
         std::is_nothrow_swappable_v<Hash> && std::is_nothrow_swappable_v<deduced_key_equal>;
     static inline constexpr bool is_nothrow_default_constructible =
         std::is_nothrow_default_constructible_v<buckets_container_type> &&
-        std::is_nothrow_default_constructible_v<entries_container_type> &&
+        std::is_nothrow_default_constructible_v<nodes_container_type> &&
         std::is_nothrow_default_constructible_v<Hash> &&
         std::is_nothrow_default_constructible_v<deduced_key_equal>;
 
@@ -160,8 +160,8 @@ public:
     using key_type = Key;
     using mapped_type = T;
     using value_type = std::pair<const Key, T>;
-    using size_type = entries_size_type;
-    using difference_type = typename entries_container_type::difference_type;
+    using size_type = nodes_size_type;
+    using difference_type = typename nodes_container_type::difference_type;
     using hasher = Hash;
     using key_equal = deduced_key_equal;
     using allocator_type = Allocator;
@@ -169,12 +169,12 @@ public:
     using const_reference = const value_type&;
     using pointer = typename std::allocator_traits<allocator_type>::pointer;
     using const_pointer = typename std::allocator_traits<allocator_type>::const_pointer;
-    using iterator = details::dense_hash_map_iterator<Key, T, entries_container_type, false, true>;
+    using iterator = details::dense_hash_map_iterator<Key, T, nodes_container_type, false, true>;
     using const_iterator =
-        details::dense_hash_map_iterator<Key, T, entries_container_type, true, true>;
-    using local_iterator = details::bucket_iterator<Key, T, entries_container_type, false, true>;
+        details::dense_hash_map_iterator<Key, T, nodes_container_type, true, true>;
+    using local_iterator = details::bucket_iterator<Key, T, nodes_container_type, false, true>;
     using const_local_iterator =
-        details::bucket_iterator<Key, T, entries_container_type, true, true>;
+        details::bucket_iterator<Key, T, nodes_container_type, true, true>;
 
     constexpr dense_hash_map() noexcept(is_nothrow_default_constructible)
         : dense_hash_map(minimum_capacity())
@@ -763,7 +763,7 @@ private:
     }
 
     constexpr auto
-    do_erase(std::size_t* previous_next, typename entries_container_type::iterator sub_it)
+    do_erase(std::size_t* previous_next, typename nodes_container_type::iterator sub_it)
         -> std::pair<iterator, bool>
     {
         // Skip the node by pointing the previous "next" to the one sub_it currently point to.
@@ -890,7 +890,7 @@ private:
     key_equal key_equal_;
 
     buckets_container_type buckets_;
-    entries_container_type nodes_;
+    nodes_container_type nodes_;
     float max_load_factor_ = details::default_max_load_factor;
 };
 
