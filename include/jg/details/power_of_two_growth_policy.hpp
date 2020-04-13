@@ -2,6 +2,7 @@
 #define JG_POWER_OF_TWO_GROWTH_POLICY_HPP
 
 #include <cstddef>
+#include <limits>
 
 namespace jg::details
 {
@@ -23,7 +24,7 @@ struct power_of_two_growth_policy
         min_capacity |= min_capacity >> 8;
         min_capacity |= min_capacity >> 16;
 
-        if constexpr (sizeof(min_capacity) == 8)
+        if constexpr (std::numeric_limits<decltype(min_capacity)>::digits >= 64)
         {
             min_capacity |= min_capacity >> 32;
         }
