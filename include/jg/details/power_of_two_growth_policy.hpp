@@ -1,6 +1,7 @@
 #ifndef JG_POWER_OF_TWO_GROWTH_POLICY_HPP
 #define JG_POWER_OF_TWO_GROWTH_POLICY_HPP
 
+#include <cassert>
 #include <cstddef>
 #include <limits>
 
@@ -16,17 +17,19 @@ struct power_of_two_growth_policy
 
     static constexpr auto compute_closest_capacity(std::size_t min_capacity) -> std::size_t
     {
-        --min_capacity;
+        // We didn't see that trick yet.
+        
+        constexpr auto highest_capacity = (std::size_t{1} << (std::numeric_limits<std::size_t>::digits -1));
+        
+        if (min_capacity > highest_capacity) {
+            assert(false && "Maximum capacity for the dense_hash_map reached.");
+            return highest_capacity;
+        }
 
-        min_capacity |= min_capacity >> 1;
-        min_capacity |= min_capacity >> 2;
-        min_capacity |= min_capacity >> 4;
-        min_capacity |= min_capacity >> 8;
-        min_capacity |= min_capacity >> 16;
+        --min_capacity;                  
 
-        if constexpr (std::numeric_limits<decltype(min_capacity)>::digits >= 64)
-        {
-            min_capacity |= min_capacity >> 32;
+        for (auto i = 1; i < std::numeric_limits<std::size_t>::digits; i *= 2) {
+            min_capacity |= min_capacity >> i;
         }
 
         return ++min_capacity;
