@@ -173,8 +173,7 @@ public:
     using const_iterator =
         details::dense_hash_map_iterator<Key, T, nodes_container_type, true, true>;
     using local_iterator = details::bucket_iterator<Key, T, nodes_container_type, false, true>;
-    using const_local_iterator =
-        details::bucket_iterator<Key, T, nodes_container_type, true, true>;
+    using const_local_iterator = details::bucket_iterator<Key, T, nodes_container_type, true, true>;
 
     constexpr dense_hash_map() noexcept(is_nothrow_default_constructible)
         : dense_hash_map(minimum_capacity())
