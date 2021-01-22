@@ -1,8 +1,7 @@
 # jg::dense_hash_map
 
 A simple replacement for `std::unordered_map` with better performances but loose stable addressing as a trade-off.
-
-More information to come later, stay tuned...
+See a lengthy explanation of this hash map here: https://jguegant.github.io/blogs/tech/dense-hash-map.html#dense-hash-map
 
 
 ## Build status:
