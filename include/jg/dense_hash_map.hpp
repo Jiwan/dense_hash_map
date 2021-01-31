@@ -13,6 +13,7 @@
 #include <functional>
 #include <iterator>
 #include <memory>
+#include <stdexcept>
 #include <tuple>
 #include <utility>
 #include <vector>
