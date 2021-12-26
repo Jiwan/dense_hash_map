@@ -5,7 +5,7 @@ project(dense_hash_map_tests)
 option(ENABLE_ASAN "Enable ASAN during the tests" OFF)
 option(ENABLE_UBASAN "Enable UBASAN during the tests" OFF)
 
-add_executable(dense_hash_map_tests src/dense_hash_map_tests)
+add_executable(dense_hash_map_tests src/dense_hash_map_tests.cpp)
 target_link_libraries(dense_hash_map_tests Catch2::Catch2)
 target_link_libraries(dense_hash_map_tests dense_hash_map)
 
